@@ -18,7 +18,11 @@ export default defineConfig(async () => {
           test: {
             name: "node",
             environment: "node",
-            include: ["test/draft-logic.test.ts", "test/crypto.test.ts"],
+            include: [
+              "test/draft-logic.test.ts",
+              "test/crypto.test.ts",
+              "test/parse-squads.test.ts",
+            ],
           },
         },
         // Integration tests run inside the Workers runtime via Miniflare.
