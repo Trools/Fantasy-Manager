@@ -1,7 +1,8 @@
-import { SELF, env } from "cloudflare:test";
+import { SELF, env, runInDurableObject } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { signSession } from "../src/shared/crypto";
 import type { DraftState, ServerMsg, SessionClaims } from "../src/shared/types";
+import type { DraftRoom } from "../src/worker/draft-room";
 
 const BASE = "https://example.com";
 
@@ -36,6 +37,50 @@ function firstMessage(ws: WebSocket): Promise<string> {
   });
 }
 
+async function insertPlayer(
+  country: string,
+  countryCode: string,
+  position: string,
+  fullName: string
+): Promise<number> {
+  const res = await env.DRAFT_DB.prepare(
+    `INSERT INTO players (country, country_code, position, full_name, active)
+     VALUES (?, ?, ?, ?, 1) RETURNING id`
+  )
+    .bind(country, countryCode, position, fullName)
+    .first<{ id: number }>();
+  return res!.id;
+}
+
+async function addParticipant(userId: number, draftOrder: number): Promise<void> {
+  await env.DRAFT_DB.prepare(
+    "INSERT INTO participants (user_id, draft_order, joined) VALUES (?, ?, 1)"
+  )
+    .bind(userId, draftOrder)
+    .run();
+}
+
+/**
+ * Open a WS and resolve once a message matching `predicate` arrives (skipping
+ * the initial state snapshot and any intervening messages).
+ */
+function messageMatching(
+  ws: WebSocket,
+  predicate: (msg: ServerMsg) => boolean
+): Promise<ServerMsg> {
+  return new Promise((resolve, reject) => {
+    const onMsg = (ev: MessageEvent) => {
+      const msg = JSON.parse(ev.data as string) as ServerMsg;
+      if (predicate(msg)) {
+        ws.removeEventListener("message", onMsg as EventListener);
+        resolve(msg);
+      }
+    };
+    ws.addEventListener("message", onMsg as EventListener);
+    ws.addEventListener("error", () => reject(new Error("ws error")), { once: true });
+  });
+}
+
 describe("draft-room integration", () => {
   beforeEach(async () => {
     await env.DRAFT_DB.prepare("DELETE FROM picks").run();
@@ -45,6 +90,20 @@ describe("draft-room integration", () => {
     await env.DRAFT_DB.prepare(
       "UPDATE draft_settings SET status='lobby', current_pick_no=NULL, timer_deadline=NULL WHERE id=1"
     ).run();
+    // The DraftRoom DO is a process-wide singleton (idFromName("main")); its
+    // in-memory cache survives across tests. Clear it so each test rebuilds
+    // state from the freshly-reset D1 rows rather than reusing stale picks.
+    const id = env.DRAFT_ROOM.idFromName("main");
+    const stub: DurableObjectStub = env.DRAFT_ROOM.get(id);
+    const resetCache = runInDurableObject as unknown as (
+      s: DurableObjectStub,
+      cb: (instance: DraftRoom) => void
+    ) => Promise<void>;
+    await resetCache(stub, (instance) => {
+      const inner = instance as unknown as { cache?: unknown; playerMap?: unknown };
+      inner.cache = undefined;
+      inner.playerMap = undefined;
+    });
   });
 
   it("rejects a WS connection without a valid token", async () => {
@@ -84,5 +143,72 @@ describe("draft-room integration", () => {
     expect(Array.isArray(state.picks)).toBe(true);
 
     ws!.close();
+  });
+
+  describe("pick handler", () => {
+    let u1: number;
+    let u2: number;
+    let eligiblePlayer: number;
+
+    beforeEach(async () => {
+      u1 = await insertUser("p1", false);
+      u2 = await insertUser("p2", false);
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      // A handful of players; FWD "fra-fwd" is eligible for user 1's empty roster.
+      eligiblePlayer = await insertPlayer("France", "FRA", "FWD", "Mbappe");
+      await insertPlayer("Brazil", "BRA", "MID", "Neymar");
+      await insertPlayer("Spain", "ESP", "DEF", "Carvajal");
+      await env.DRAFT_DB.prepare(
+        "UPDATE draft_settings SET status='in_progress', current_pick_no=1 WHERE id=1"
+      ).run();
+    });
+
+    it("rejects a pick from a user when it is not their turn", async () => {
+      const token = await tokenFor(u2, "p2", false);
+      const res = await SELF.fetch(`${BASE}/ws`, {
+        headers: { Upgrade: "websocket", Cookie: `wcd_session=${token}` },
+      });
+      expect(res.status).toBe(101);
+      const ws = res.webSocket!;
+      ws.accept();
+
+      const errP = messageMatching(ws, (m) => m.t === "error");
+      ws.send(JSON.stringify({ t: "pick", player_id: eligiblePlayer }));
+      const msg = (await errP) as Extract<ServerMsg, { t: "error" }>;
+      expect(msg.t).toBe("error");
+      expect(msg.code).toBe("not_your_turn");
+
+      ws.close();
+    });
+
+    it("accepts an eligible pick from the on-the-clock user and advances the draft", async () => {
+      const token = await tokenFor(u1, "p1", false);
+      const res = await SELF.fetch(`${BASE}/ws`, {
+        headers: { Upgrade: "websocket", Cookie: `wcd_session=${token}` },
+      });
+      expect(res.status).toBe(101);
+      const ws = res.webSocket!;
+      ws.accept();
+
+      const madeP = messageMatching(ws, (m) => m.t === "pick_made");
+      const stateP = messageMatching(
+        ws,
+        (m) => m.t === "state" && (m as Extract<ServerMsg, { t: "state" }>).state.picks.length === 1
+      );
+      ws.send(JSON.stringify({ t: "pick", player_id: eligiblePlayer }));
+
+      const made = (await madeP) as Extract<ServerMsg, { t: "pick_made" }>;
+      expect(made.pick.player_id).toBe(eligiblePlayer);
+      expect(made.by_username).toBe("p1");
+
+      const stateMsg = (await stateP) as Extract<ServerMsg, { t: "state" }>;
+      const state = stateMsg.state as DraftState;
+      expect(state.picks.length).toBe(1);
+      expect(state.current_pick_no).toBe(2);
+      expect(state.current_user_id).toBe(u2);
+
+      ws.close();
+    });
   });
 });
