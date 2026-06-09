@@ -56,7 +56,10 @@ export class DraftRoom {
     const token = new URL(req.url).searchParams.get("token") ?? "";
     const claims = await verifySession(token, this.env.SESSION_SECRET);
     if (!claims) return new Response(JSON.stringify({ error: "unauthenticated" }), { status: 401 });
-    if (!claims.isAdmin) return new Response(JSON.stringify({ error: "forbidden" }), { status: 403 });
+    // `refresh` only needs a valid authenticated session (it just invalidates the
+    // cache + rebroadcasts state). Every other command requires admin.
+    if (cmd !== "refresh" && !claims.isAdmin)
+      return new Response(JSON.stringify({ error: "forbidden" }), { status: 403 });
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const db = this.env.DRAFT_DB;
 

@@ -336,12 +336,20 @@ describe("draft-room integration", () => {
       expect(body.error).toBe("unauthenticated");
     });
 
-    it("rejects a command from a non-admin user with 403", async () => {
+    it("rejects a non-refresh command from a non-admin user with 403", async () => {
       const nonAdminToken = await tokenFor(u1, "c1", false);
-      const res = await cmd("refresh", {}, nonAdminToken);
+      const res = await cmd("pause", {}, nonAdminToken);
       expect(res.status).toBe(403);
       const body = await res.json<{ error: string }>();
       expect(body.error).toBe("forbidden");
+    });
+
+    it("allows a non-admin authenticated user to call refresh", async () => {
+      const nonAdminToken = await tokenFor(u1, "c1", false);
+      const res = await cmd("refresh", {}, nonAdminToken);
+      expect(res.status).toBe(200);
+      const body = await res.json<{ ok: boolean }>();
+      expect(body.ok).toBe(true);
     });
 
     it("randomize in lobby assigns a 1..N permutation to all joined participants", async () => {
