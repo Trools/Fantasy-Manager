@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { pickerForPickNo, roundForPickNo, eligibility, validateSettings, isDraftComplete } from "../src/shared/draft-logic";
+import { pickerForPickNo, roundForPickNo, eligibility, validateSettings, isDraftComplete, rosterFromPicks } from "../src/shared/draft-logic";
+import type { Player, Pick } from "../src/shared/types";
 
 describe("snake order", () => {
   const order = [10, 20, 30]; // user ids in draft_order
@@ -73,5 +74,49 @@ describe("completion", () => {
   it("is complete when all participants reached total_picks", () => {
     expect(isDraftComplete(8, [1,2], 4)).toBe(true);
     expect(isDraftComplete(7, [1,2], 4)).toBe(false);
+  });
+});
+
+describe("rosterFromPicks", () => {
+  it("returns only entries for the requested user, in pick order", () => {
+    const playerMap = new Map<number, Player>([
+      [101, { id: 101, country: "France", country_code: "FRA", position: "GK", shirt_number: 1, full_name: "Hugo Lloris", name_on_shirt: "LLORIS", club: "Spurs", dob: "1986-12-26", active: true }],
+      [102, { id: 102, country: "Brazil", country_code: "BRA", position: "DEF", shirt_number: 3, full_name: "Marquinhos", name_on_shirt: "MARQUINHOS", club: "PSG", dob: "1994-05-14", active: true }],
+      [103, { id: 103, country: "England", country_code: "ENG", position: "MID", shirt_number: 8, full_name: "Declan Rice", name_on_shirt: "RICE", club: "Arsenal", dob: "1999-01-14", active: true }],
+    ]);
+
+    const picks: Pick[] = [
+      { overall_no: 1, round_no: 1, user_id: 1, player_id: 101, picked_by_user_id: 1, picked_at: 1000 },
+      { overall_no: 2, round_no: 1, user_id: 2, player_id: 102, picked_by_user_id: 2, picked_at: 1001 },
+      { overall_no: 3, round_no: 2, user_id: 1, player_id: 103, picked_by_user_id: 1, picked_at: 1002 },
+    ];
+
+    const roster = rosterFromPicks(picks, playerMap, 1);
+
+    expect(roster).toHaveLength(2);
+    expect(roster[0]).toEqual({ position: "GK", country_code: "FRA" });
+    expect(roster[1]).toEqual({ position: "MID", country_code: "ENG" });
+  });
+});
+
+describe("validateSettings edge paths", () => {
+  it("returns error matching /GK min exceeds max/ when GK min > GK max", () => {
+    const errs = validateSettings({
+      total_picks: 6,
+      pos_min: { GK: 2, DEF: 2, MID: 1, FWD: 0 } as any,
+      pos_max: { GK: 1, DEF: 4, MID: 4, FWD: 4 } as any,
+      max_per_country: 2,
+    } as any);
+    expect(errs.some(e => /GK min exceeds max/.test(e))).toBe(true);
+  });
+
+  it("returns 'max_per_country must be at least 1' when max_per_country is 0", () => {
+    const errs = validateSettings({
+      total_picks: 6,
+      pos_min: { GK: 1, DEF: 2, MID: 1, FWD: 0 } as any,
+      pos_max: { GK: 2, DEF: 4, MID: 4, FWD: 4 } as any,
+      max_per_country: 0,
+    } as any);
+    expect(errs).toContain("max_per_country must be at least 1");
   });
 });
