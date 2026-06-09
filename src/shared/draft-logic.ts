@@ -39,3 +39,18 @@ export function rosterFromPicks(picks: Pick[], players: Map<number, Player>, use
     return { position: pl.position, country_code: pl.country_code };
   });
 }
+
+export function validateSettings(s: { total_picks: number; pos_min: PosCounts; pos_max: PosCounts; max_per_country: number }): string[] {
+  const errs: string[] = [];
+  const sumMin = (["GK","DEF","MID","FWD"] as Position[]).reduce((a,p)=>a+s.pos_min[p],0);
+  const sumMax = (["GK","DEF","MID","FWD"] as Position[]).reduce((a,p)=>a+s.pos_max[p],0);
+  if (s.total_picks < sumMin) errs.push(`total_picks must be at least the sum of minimums (${sumMin})`);
+  if (s.total_picks > sumMax) errs.push(`total_picks must be at most the sum of maximums (${sumMax})`);
+  for (const p of ["GK","DEF","MID","FWD"] as Position[]) if (s.pos_min[p] > s.pos_max[p]) errs.push(`${p} min exceeds max`);
+  if (s.max_per_country < 1) errs.push("max_per_country must be at least 1");
+  return errs;
+}
+
+export function isDraftComplete(pickCount: number, participantIds: number[], totalPicks: number): boolean {
+  return pickCount >= participantIds.length * totalPicks;
+}

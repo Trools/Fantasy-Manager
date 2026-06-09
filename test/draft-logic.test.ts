@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickerForPickNo, roundForPickNo, eligibility } from "../src/shared/draft-logic";
+import { pickerForPickNo, roundForPickNo, eligibility, validateSettings, isDraftComplete } from "../src/shared/draft-logic";
 
 describe("snake order", () => {
   const order = [10, 20, 30]; // user ids in draft_order
@@ -52,5 +52,26 @@ describe("eligibility", () => {
   it("allows a valid pick", () => {
     const roster = [{ position: "GK", country_code: "A" }] as any;
     expect(eligibility("DEF", "B", roster, settings).ok).toBe(true);
+  });
+});
+
+describe("settings validation", () => {
+  it("rejects total_picks below sum of minimums", () => {
+    const errs = validateSettings({ total_picks: 3, pos_min: { GK:1,DEF:3,MID:1,FWD:1 }, pos_max:{GK:1,DEF:3,MID:3,FWD:3}, max_per_country:2 } as any);
+    expect(errs).toContain("total_picks must be at least the sum of minimums (6)");
+  });
+  it("rejects total_picks above sum of maximums", () => {
+    const errs = validateSettings({ total_picks: 99, pos_min:{GK:0,DEF:0,MID:0,FWD:0}, pos_max:{GK:1,DEF:1,MID:1,FWD:1}, max_per_country:2 } as any);
+    expect(errs.some(e => e.includes("at most the sum of maximums"))).toBe(true);
+  });
+  it("accepts valid settings", () => {
+    expect(validateSettings({ total_picks: 6, pos_min:{GK:1,DEF:2,MID:1,FWD:0}, pos_max:{GK:2,DEF:4,MID:4,FWD:4}, max_per_country:2 } as any)).toEqual([]);
+  });
+});
+
+describe("completion", () => {
+  it("is complete when all participants reached total_picks", () => {
+    expect(isDraftComplete(8, [1,2], 4)).toBe(true);
+    expect(isDraftComplete(7, [1,2], 4)).toBe(false);
   });
 });
