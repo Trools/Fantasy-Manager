@@ -286,8 +286,9 @@ describe("draft-room integration", () => {
       return env.DRAFT_ROOM.get(env.DRAFT_ROOM.idFromName("main"));
     }
 
-    async function cmd(name: string, payload?: unknown): Promise<Response> {
-      return cmdStub().fetch(`https://do/cmd/${name}`, {
+    async function cmd(name: string, payload?: unknown, token?: string): Promise<Response> {
+      const tok = token ?? adminToken;
+      return cmdStub().fetch(`https://do/cmd/${name}?token=${encodeURIComponent(tok)}`, {
         method: "POST",
         body: JSON.stringify(payload ?? {}),
       });
@@ -315,12 +316,32 @@ describe("draft-room integration", () => {
     let u2: number;
     let u3: number;
     let admin: number;
+    let adminToken: string;
 
     beforeEach(async () => {
       u1 = await insertUser("c1", false);
       u2 = await insertUser("c2", false);
       u3 = await insertUser("c3", false);
       admin = await insertUser("boss", true);
+      adminToken = await tokenFor(admin, "boss", true);
+    });
+
+    it("rejects a command with no token with 401", async () => {
+      const res = await cmdStub().fetch("https://do/cmd/refresh", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(401);
+      const body = await res.json<{ error: string }>();
+      expect(body.error).toBe("unauthenticated");
+    });
+
+    it("rejects a command from a non-admin user with 403", async () => {
+      const nonAdminToken = await tokenFor(u1, "c1", false);
+      const res = await cmd("refresh", {}, nonAdminToken);
+      expect(res.status).toBe(403);
+      const body = await res.json<{ error: string }>();
+      expect(body.error).toBe("forbidden");
     });
 
     it("randomize in lobby assigns a 1..N permutation to all joined participants", async () => {
@@ -418,7 +439,7 @@ describe("draft-room integration", () => {
       await cmd("start");
 
       // Admin picks on behalf to create pick #1, then we manually pause and undo.
-      const pob = await cmd("pick-on-behalf", { player_id: fwd, admin_id: admin });
+      const pob = await cmd("pick-on-behalf", { player_id: fwd });
       expect(pob.status).toBe(200);
       let s = await settings();
       expect(s.current_pick_no).toBe(2);
@@ -461,7 +482,7 @@ describe("draft-room integration", () => {
       const fwd = await insertPlayer("France", "FRA", "FWD", "Mbappe");
       await cmd("start");
 
-      const res = await cmd("pick-on-behalf", { player_id: fwd, admin_id: admin });
+      const res = await cmd("pick-on-behalf", { player_id: fwd });
       expect(res.status).toBe(200);
 
       const pick = await env.DRAFT_DB.prepare(
@@ -470,6 +491,7 @@ describe("draft-room integration", () => {
         .bind(fwd)
         .first<{ user_id: number; picked_by_user_id: number }>();
       expect(pick!.user_id).toBe(u1);
+      // picked_by_user_id must be the authenticated admin (from the token), not a body value
       expect(pick!.picked_by_user_id).toBe(admin);
 
       const s = await settings();
@@ -492,10 +514,11 @@ describe("draft-room integration", () => {
       expect(pausedS.status).toBe("paused");
 
       const before = Date.now();
-      const res = await cmd("pick-on-behalf", { player_id: fwd, admin_id: admin });
+      const res = await cmd("pick-on-behalf", { player_id: fwd });
       expect(res.status).toBe(200);
 
       // Pick row must be recorded with the admin as picked_by_user_id and u1 as the owner.
+      // picked_by_user_id comes from the verified token, not the request body.
       const pick = await env.DRAFT_DB.prepare(
         "SELECT user_id, picked_by_user_id FROM picks WHERE player_id=?"
       )

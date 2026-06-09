@@ -53,6 +53,10 @@ export class DraftRoom {
   }
 
   private async handleCommand(cmd: string, req: Request): Promise<Response> {
+    const token = new URL(req.url).searchParams.get("token") ?? "";
+    const claims = await verifySession(token, this.env.SESSION_SECRET);
+    if (!claims) return new Response(JSON.stringify({ error: "unauthenticated" }), { status: 401 });
+    if (!claims.isAdmin) return new Response(JSON.stringify({ error: "forbidden" }), { status: 403 });
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const db = this.env.DRAFT_DB;
 
@@ -193,7 +197,6 @@ export class DraftRoom {
         const currentPicker = state.current_user_id;
         if (currentPicker == null)
           return Response.json({ error: "No picker on the clock" }, { status: 409 });
-        const adminId = Number(body.admin_id);
         const players =
           this.playerMap ??
           (this.playerMap = new Map((await getActivePlayers(db)).map((p) => [p.id, p])));
@@ -205,9 +208,7 @@ export class DraftRoom {
         const elig = eligibility(player.position, player.country_code, roster, state.settings);
         if (!elig.ok) return Response.json({ error: elig.reason! }, { status: 409 });
         const order = this.orderFromState(state);
-        const byUsername =
-          state.participants.find((p) => p.user_id === adminId)?.username ?? "admin";
-        await this.applyPick(state, order, player, currentPicker, adminId, byUsername);
+        await this.applyPick(state, order, player, currentPicker, claims.userId, claims.username);
         return Response.json({ ok: true });
       }
 
