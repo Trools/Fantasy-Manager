@@ -15,7 +15,7 @@ function unb64u(s: string): Uint8Array {
 
 async function pbkdf2(pw: string, salt: Uint8Array): Promise<string> {
   const key = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: ITER }, key, 256);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: salt as Uint8Array<ArrayBuffer>, iterations: ITER }, key, 256);
   return b64u(bits);
 }
 
