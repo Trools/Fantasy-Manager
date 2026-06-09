@@ -32,6 +32,13 @@ export class DraftRoom {
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    if (url.pathname === "/ws") return this.handleWs(req);
+    if (url.pathname.startsWith("/cmd/")) return this.handleCommand(url.pathname.slice(5), req);
+    return new Response("not found", { status: 404 });
+  }
+
+  private async handleWs(req: Request): Promise<Response> {
+    const url = new URL(req.url);
     const token = url.searchParams.get("token") ?? "";
     const claims = await verifySession(token, this.env.SESSION_SECRET);
     if (!claims) return new Response("unauthorized", { status: 401 });
@@ -43,6 +50,180 @@ export class DraftRoom {
     server.serializeAttachment({ userId: claims.userId, username: claims.username, isAdmin: claims.isAdmin });
     server.send(JSON.stringify({ t: "state", state: await this.buildState() } satisfies ServerMsg));
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  private async handleCommand(cmd: string, req: Request): Promise<Response> {
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const db = this.env.DRAFT_DB;
+
+    switch (cmd) {
+      case "refresh": {
+        this.cache = undefined;
+        this.broadcast({ t: "state", state: await this.buildState() });
+        return Response.json({ ok: true });
+      }
+
+      case "randomize": {
+        const row = await getSettingsRow(db);
+        const s = parseSettings(row);
+        if (s.status !== "lobby")
+          return Response.json({ error: "Draft not in lobby" }, { status: 409 });
+        const { results } = await db
+          .prepare("SELECT user_id FROM participants WHERE joined=1")
+          .all<{ user_id: number }>();
+        const ids = results.map((r) => r.user_id);
+        // Fisher-Yates shuffle with crypto randomness (Math.random unavailable here).
+        for (let i = ids.length - 1; i > 0; i--) {
+          const j = this.randInt(i + 1);
+          [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+        }
+        await db.batch(
+          ids.map((uid, idx) =>
+            db.prepare("UPDATE participants SET draft_order=? WHERE user_id=?").bind(idx + 1, uid)
+          )
+        );
+        this.cache = undefined;
+        this.broadcast({ t: "state", state: await this.buildState() });
+        return Response.json({ ok: true });
+      }
+
+      case "start": {
+        const row = await getSettingsRow(db);
+        const s = parseSettings(row);
+        if (s.status !== "lobby")
+          return Response.json({ error: "Draft not in lobby" }, { status: 409 });
+        const participants = await listParticipants(db);
+        const joined = participants.filter((p) => p.joined);
+        if (joined.length < 2)
+          return Response.json({ error: "Need at least 2 participants" }, { status: 409 });
+        if (joined.some((p) => p.draft_order == null))
+          return Response.json({ error: "Draft order not set; randomize first" }, { status: 409 });
+        const deadline = Date.now() + s.seconds_per_pick * 1000;
+        await db
+          .prepare(
+            "UPDATE draft_settings SET status='in_progress', current_pick_no=1, timer_deadline=? WHERE id=1"
+          )
+          .bind(deadline)
+          .run();
+        await this.ctx.storage.setAlarm(deadline);
+        this.cache = undefined;
+        this.broadcast({ t: "state", state: await this.buildState() });
+        return Response.json({ ok: true });
+      }
+
+      case "pause": {
+        const row = await getSettingsRow(db);
+        const s = parseSettings(row);
+        if (s.status !== "in_progress")
+          return Response.json({ error: "Draft not in progress" }, { status: 409 });
+        await db
+          .prepare("UPDATE draft_settings SET status='paused', timer_deadline=NULL WHERE id=1")
+          .run();
+        await this.ctx.storage.deleteAlarm();
+        this.cache = undefined;
+        this.broadcast({ t: "state", state: await this.buildState() });
+        return Response.json({ ok: true });
+      }
+
+      case "resume": {
+        const row = await getSettingsRow(db);
+        const s = parseSettings(row);
+        if (s.status !== "paused")
+          return Response.json({ error: "Draft not paused" }, { status: 409 });
+        const deadline = Date.now() + s.seconds_per_pick * 1000;
+        await db
+          .prepare("UPDATE draft_settings SET status='in_progress', timer_deadline=? WHERE id=1")
+          .bind(deadline)
+          .run();
+        await this.ctx.storage.setAlarm(deadline);
+        this.cache = undefined;
+        this.broadcast({ t: "state", state: await this.buildState() });
+        return Response.json({ ok: true });
+      }
+
+      case "extend": {
+        const row = await getSettingsRow(db);
+        const s = parseSettings(row);
+        if (s.status !== "in_progress" || s.timer_deadline == null)
+          return Response.json({ error: "No active timer to extend" }, { status: 409 });
+        const seconds = Number(body.seconds) || 0;
+        const deadline = s.timer_deadline + seconds * 1000;
+        await db
+          .prepare("UPDATE draft_settings SET timer_deadline=? WHERE id=1")
+          .bind(deadline)
+          .run();
+        await this.ctx.storage.setAlarm(deadline);
+        this.cache = undefined;
+        this.broadcast({ t: "state", state: await this.buildState() });
+        return Response.json({ ok: true });
+      }
+
+      case "undo": {
+        const row = await getSettingsRow(db);
+        const s = parseSettings(row);
+        if (s.status !== "paused")
+          return Response.json({ error: "Draft not paused" }, { status: 409 });
+        const picks = await listPicks(db);
+        if (picks.length === 0)
+          return Response.json({ error: "No picks to undo" }, { status: 409 });
+        const lastNo = Math.max(...picks.map((p) => p.overall_no));
+        const deadline = Date.now() + s.seconds_per_pick * 1000;
+        await db.batch([
+          db.prepare("DELETE FROM picks WHERE overall_no=?").bind(lastNo),
+          db
+            .prepare(
+              "UPDATE draft_settings SET status='in_progress', current_pick_no=?, timer_deadline=? WHERE id=1"
+            )
+            .bind(lastNo, deadline),
+        ]);
+        await this.ctx.storage.setAlarm(deadline);
+        this.cache = undefined;
+        this.broadcast({ t: "state", state: await this.buildState() });
+        return Response.json({ ok: true });
+      }
+
+      case "pick-on-behalf": {
+        const state = (this.cache = await this.buildState());
+        if (state.status !== "in_progress" && state.status !== "paused")
+          return Response.json({ error: "Draft not active" }, { status: 409 });
+        const currentPicker = state.current_user_id;
+        if (currentPicker == null)
+          return Response.json({ error: "No picker on the clock" }, { status: 409 });
+        const adminId = Number(body.admin_id);
+        const players =
+          this.playerMap ??
+          (this.playerMap = new Map((await getActivePlayers(db)).map((p) => [p.id, p])));
+        const player = players.get(Number(body.player_id));
+        if (!player) return Response.json({ error: "Unknown player" }, { status: 409 });
+        if (state.picks.some((p) => p.player_id === player.id))
+          return Response.json({ error: "Already drafted" }, { status: 409 });
+        const roster = rosterFromPicks(state.picks, players, currentPicker);
+        const elig = eligibility(player.position, player.country_code, roster, state.settings);
+        if (!elig.ok) return Response.json({ error: elig.reason! }, { status: 409 });
+        const order = this.orderFromState(state);
+        const byUsername =
+          state.participants.find((p) => p.user_id === adminId)?.username ?? "admin";
+        await this.applyPick(state, order, player, currentPicker, adminId, byUsername);
+        return Response.json({ ok: true });
+      }
+
+      default:
+        return new Response("not found", { status: 404 });
+    }
+  }
+
+  /** Uniform random integer in [0, max) using crypto.getRandomValues. */
+  private randInt(max: number): number {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return buf[0]! % max;
+  }
+
+  private orderFromState(state: DraftState): number[] {
+    return state.participants
+      .filter((p) => p.draft_order != null)
+      .sort((a, b) => a.draft_order! - b.draft_order!)
+      .map((p) => p.user_id);
   }
 
   async buildState(): Promise<DraftState> {
@@ -102,11 +283,35 @@ export class DraftRoom {
     const elig = eligibility(player.position, player.country_code, roster, state.settings);
     if (!elig.ok)
       return ws.send(JSON.stringify({ t: "error", code: "ineligible", message: elig.reason! }));
-    const order = state.participants.filter(p => p.draft_order != null)
-      .sort((a, b) => (a.draft_order! - b.draft_order!)).map(p => p.user_id);
+    const order = this.orderFromState(state);
+    await this.applyPick(state, order, player, att.userId, att.userId, att.username);
+  }
+
+  /**
+   * Commit a pick into the in-memory `state` and broadcast, then persist + (re)set
+   * the alarm. CRITICAL: there is NO `await` between the first state mutation and the
+   * two broadcasts — this preserves the race-safety of the on-the-clock turn check.
+   * Callers MUST perform all guards (status, turn ownership, eligibility, …) before
+   * invoking this method.
+   */
+  private async applyPick(
+    state: DraftState,
+    order: number[],
+    player: Player,
+    forUserId: number,
+    byUserId: number,
+    byUsername: string
+  ) {
+    // ---- SYNCHRONOUS MUTATE + BROADCAST (no await until after the broadcasts) ----
     const overall = state.current_pick_no!;
-    const pick: Pick = { overall_no: overall, round_no: roundForPickNo(overall, order.length),
-      user_id: att.userId, player_id: player.id, picked_by_user_id: att.userId, picked_at: Date.now() };
+    const pick: Pick = {
+      overall_no: overall,
+      round_no: roundForPickNo(overall, order.length),
+      user_id: forUserId,
+      player_id: player.id,
+      picked_by_user_id: byUserId,
+      picked_at: Date.now(),
+    };
     state.picks.push(pick);
     const complete = isDraftComplete(state.picks.length, order, state.settings.total_picks);
     const nextNo = complete ? overall : overall + 1;
@@ -116,7 +321,7 @@ export class DraftRoom {
     state.round_no = complete ? null : roundForPickNo(nextNo, order.length);
     const deadline = complete ? null : Date.now() + state.settings.seconds_per_pick * 1000;
     state.timer_deadline = deadline;
-    this.broadcast({ t: "pick_made", pick, player, by_username: att.username });
+    this.broadcast({ t: "pick_made", pick, player, by_username: byUsername });
     this.broadcast({ t: "state", state });
     // ---- AWAIT PERSIST (after in-memory state committed + broadcast) ----
     await this.persistPick(pick, state.status, state.current_pick_no, deadline);

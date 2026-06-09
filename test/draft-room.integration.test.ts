@@ -1,4 +1,4 @@
-import { SELF, env, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
+import { SELF, env, runInDurableObject } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { signSession } from "../src/shared/crypto";
 import type { DraftState, ServerMsg, SessionClaims } from "../src/shared/types";
@@ -279,5 +279,213 @@ describe("draft-room integration", () => {
 
       expect(await statusInD1()).toBe("paused");
     });
+  });
+
+  describe("admin commands", () => {
+    function cmdStub(): DurableObjectStub {
+      return env.DRAFT_ROOM.get(env.DRAFT_ROOM.idFromName("main"));
+    }
+
+    async function cmd(name: string, payload?: unknown): Promise<Response> {
+      return cmdStub().fetch(`https://do/cmd/${name}`, {
+        method: "POST",
+        body: JSON.stringify(payload ?? {}),
+      });
+    }
+
+    async function settings(): Promise<{
+      status: string;
+      current_pick_no: number | null;
+      timer_deadline: number | null;
+    }> {
+      const row = await env.DRAFT_DB.prepare(
+        "SELECT status, current_pick_no, timer_deadline FROM draft_settings WHERE id = 1"
+      ).first<{ status: string; current_pick_no: number | null; timer_deadline: number | null }>();
+      return row!;
+    }
+
+    async function draftOrders(): Promise<Array<number | null>> {
+      const { results } = await env.DRAFT_DB.prepare(
+        "SELECT draft_order FROM participants ORDER BY user_id"
+      ).all<{ draft_order: number | null }>();
+      return results.map((r) => r.draft_order);
+    }
+
+    let u1: number;
+    let u2: number;
+    let u3: number;
+    let admin: number;
+
+    beforeEach(async () => {
+      u1 = await insertUser("c1", false);
+      u2 = await insertUser("c2", false);
+      u3 = await insertUser("c3", false);
+      admin = await insertUser("boss", true);
+    });
+
+    it("randomize in lobby assigns a 1..N permutation to all joined participants", async () => {
+      // joined participants with no draft_order yet
+      await env.DRAFT_DB.prepare("INSERT INTO participants (user_id, joined) VALUES (?, 1)")
+        .bind(u1)
+        .run();
+      await env.DRAFT_DB.prepare("INSERT INTO participants (user_id, joined) VALUES (?, 1)")
+        .bind(u2)
+        .run();
+      await env.DRAFT_DB.prepare("INSERT INTO participants (user_id, joined) VALUES (?, 1)")
+        .bind(u3)
+        .run();
+
+      const res = await cmd("randomize");
+      expect(res.status).toBe(200);
+      const orders = await draftOrders();
+      expect(orders.every((o) => o != null)).toBe(true);
+      expect([...orders].sort((a, b) => a! - b!)).toEqual([1, 2, 3]);
+    });
+
+    it("randomize rejects with 409 when not in lobby", async () => {
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      await env.DRAFT_DB.prepare(
+        "UPDATE draft_settings SET status='in_progress', current_pick_no=1 WHERE id=1"
+      ).run();
+      const res = await cmd("randomize");
+      expect(res.status).toBe(409);
+    });
+
+    it("start moves a randomized lobby in_progress with pick 1 and a future timer", async () => {
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      const before = Date.now();
+      const res = await cmd("start");
+      expect(res.status).toBe(200);
+      const s = await settings();
+      expect(s.status).toBe("in_progress");
+      expect(s.current_pick_no).toBe(1);
+      expect(s.timer_deadline).toBeGreaterThan(before);
+    });
+
+    it("start rejects with 409 when fewer than 2 participants", async () => {
+      await addParticipant(u1, 1);
+      const res = await cmd("start");
+      expect(res.status).toBe(409);
+    });
+
+    it("start rejects with 409 when draft order is not set", async () => {
+      await env.DRAFT_DB.prepare("INSERT INTO participants (user_id, joined) VALUES (?, 1)")
+        .bind(u1)
+        .run();
+      await env.DRAFT_DB.prepare("INSERT INTO participants (user_id, joined) VALUES (?, 1)")
+        .bind(u2)
+        .run();
+      const res = await cmd("start");
+      expect(res.status).toBe(409);
+    });
+
+    it("pause / resume / extend transition the timer correctly", async () => {
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      await cmd("start");
+
+      const pauseRes = await cmd("pause");
+      expect(pauseRes.status).toBe(200);
+      let s = await settings();
+      expect(s.status).toBe("paused");
+      expect(s.timer_deadline).toBeNull();
+      const alarmAfterPause = await runInDurableObject(
+        cmdStub(),
+        (_i: DraftRoom, ctx: DurableObjectState) => ctx.storage.getAlarm()
+      );
+      expect(alarmAfterPause).toBeNull();
+
+      const before = Date.now();
+      const resumeRes = await cmd("resume");
+      expect(resumeRes.status).toBe(200);
+      s = await settings();
+      expect(s.status).toBe("in_progress");
+      expect(s.timer_deadline).toBeGreaterThan(before);
+
+      const deadlineBefore = s.timer_deadline!;
+      const extRes = await cmd("extend", { seconds: 30 });
+      expect(extRes.status).toBe(200);
+      s = await settings();
+      expect(s.timer_deadline).toBe(deadlineBefore + 30000);
+    });
+
+    it("undo removes the last pick and returns the clock to that pick", async () => {
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      const fwd = await insertPlayer("France", "FRA", "FWD", "Mbappe");
+      await cmd("start");
+
+      // Admin picks on behalf to create pick #1, then we manually pause and undo.
+      const pob = await cmd("pick-on-behalf", { player_id: fwd, admin_id: admin });
+      expect(pob.status).toBe(200);
+      let s = await settings();
+      expect(s.current_pick_no).toBe(2);
+
+      await env.DRAFT_DB.prepare(
+        "UPDATE draft_settings SET status='paused', timer_deadline=NULL WHERE id=1"
+      ).run();
+      await resetMainCache();
+
+      const res = await cmd("undo");
+      expect(res.status).toBe(200);
+      const picks = await env.DRAFT_DB.prepare("SELECT COUNT(*) AS n FROM picks").first<{ n: number }>();
+      expect(picks!.n).toBe(0);
+      s = await settings();
+      expect(s.status).toBe("in_progress");
+      expect(s.current_pick_no).toBe(1);
+    });
+
+    it("undo rejects with 409 when not paused", async () => {
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      await cmd("start");
+      const res = await cmd("undo");
+      expect(res.status).toBe(409);
+    });
+
+    it("undo rejects with 409 when there are no picks", async () => {
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      await cmd("start");
+      await env.DRAFT_DB.prepare("UPDATE draft_settings SET status='paused' WHERE id=1").run();
+      await resetMainCache();
+      const res = await cmd("undo");
+      expect(res.status).toBe(409);
+    });
+
+    it("pick-on-behalf records a pick for the current picker by the admin and advances", async () => {
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      const fwd = await insertPlayer("France", "FRA", "FWD", "Mbappe");
+      await cmd("start");
+
+      const res = await cmd("pick-on-behalf", { player_id: fwd, admin_id: admin });
+      expect(res.status).toBe(200);
+
+      const pick = await env.DRAFT_DB.prepare(
+        "SELECT user_id, picked_by_user_id FROM picks WHERE player_id=?"
+      )
+        .bind(fwd)
+        .first<{ user_id: number; picked_by_user_id: number }>();
+      expect(pick!.user_id).toBe(u1);
+      expect(pick!.picked_by_user_id).toBe(admin);
+
+      const s = await settings();
+      expect(s.current_pick_no).toBe(2);
+    });
+
+    async function resetMainCache(): Promise<void> {
+      const reset = runInDurableObject as unknown as (
+        s: DurableObjectStub,
+        cb: (instance: DraftRoom) => void
+      ) => Promise<void>;
+      await reset(cmdStub(), (instance) => {
+        const inner = instance as unknown as { cache?: unknown; playerMap?: unknown };
+        inner.cache = undefined;
+        inner.playerMap = undefined;
+      });
+    }
   });
 });
