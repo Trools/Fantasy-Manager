@@ -4,3 +4,4 @@ dist/
 .dev.vars
 .superpowers/
 .DS_Store
+.seed.sql
