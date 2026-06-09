@@ -8,7 +8,27 @@ export class DraftRoom {
   private cache?: DraftState;
   private playerMap?: Map<number, Player>;
 
-  constructor(private ctx: DurableObjectState, private env: Env) {}
+  constructor(private ctx: DurableObjectState, private env: Env) {
+    this.ctx.blockConcurrencyWhile(() => this.rehydrate());
+  }
+
+  async alarm() {
+    const row = await getSettingsRow(this.env.DRAFT_DB);
+    if (!row || row.status !== "in_progress") return;
+    await this.env.DRAFT_DB.prepare("UPDATE draft_settings SET status='paused' WHERE id=1").run();
+    this.cache = undefined; // force rebuild from D1
+    this.broadcast({ t: "state", state: await this.buildState() });
+  }
+
+  private async rehydrate() {
+    const row = await getSettingsRow(this.env.DRAFT_DB);
+    if (!row) return;
+    const s = parseSettings(row);
+    if (s.status === "in_progress" && s.timer_deadline) {
+      if (s.timer_deadline <= Date.now()) await this.alarm();
+      else await this.ctx.storage.setAlarm(s.timer_deadline);
+    }
+  }
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);

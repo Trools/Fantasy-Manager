@@ -1,4 +1,4 @@
-import { SELF, env, runInDurableObject } from "cloudflare:test";
+import { SELF, env, runInDurableObject, runDurableObjectAlarm } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { signSession } from "../src/shared/crypto";
 import type { DraftState, ServerMsg, SessionClaims } from "../src/shared/types";
@@ -209,6 +209,75 @@ describe("draft-room integration", () => {
       expect(state.current_user_id).toBe(u2);
 
       ws.close();
+    });
+  });
+
+  describe("pick timer alarm + rehydration", () => {
+    async function statusInD1(): Promise<string> {
+      const row = await env.DRAFT_DB.prepare(
+        "SELECT status FROM draft_settings WHERE id = 1"
+      ).first<{ status: string }>();
+      return row!.status;
+    }
+
+    it("alarm pauses an in-progress draft", async () => {
+      const u1 = await insertUser("a1", false);
+      const u2 = await insertUser("a2", false);
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      await env.DRAFT_DB.prepare(
+        "UPDATE draft_settings SET status='in_progress', current_pick_no=1, timer_deadline=? WHERE id=1"
+      )
+        .bind(Date.now() + 30000)
+        .run();
+
+      const stub = env.DRAFT_ROOM.get(env.DRAFT_ROOM.idFromName("main"));
+      await runInDurableObject(stub, (inst: DraftRoom) => inst.alarm());
+
+      expect(await statusInD1()).toBe("paused");
+    });
+
+    it("alarm is a no-op when the draft is not in_progress", async () => {
+      // beforeEach resets status to 'lobby'.
+      expect(await statusInD1()).toBe("lobby");
+
+      const stub = env.DRAFT_ROOM.get(env.DRAFT_ROOM.idFromName("main"));
+      await runInDurableObject(stub, (inst: DraftRoom) => inst.alarm());
+
+      expect(await statusInD1()).toBe("lobby");
+    });
+
+    it("rehydration re-arms a future alarm on fresh construction", async () => {
+      const deadline = Date.now() + 60000;
+      await env.DRAFT_DB.prepare(
+        "UPDATE draft_settings SET status='in_progress', current_pick_no=1, timer_deadline=? WHERE id=1"
+      )
+        .bind(deadline)
+        .run();
+
+      // Distinct DO name forces a fresh construction (and thus rehydrate()).
+      const stub = env.DRAFT_ROOM.get(env.DRAFT_ROOM.idFromName("rehydrate-future"));
+      const armed = await runInDurableObject(
+        stub,
+        (_inst: DraftRoom, ctx: DurableObjectState) => ctx.storage.getAlarm()
+      );
+      expect(armed).toBe(deadline);
+    });
+
+    it("rehydration fires immediately for a past deadline", async () => {
+      await env.DRAFT_DB.prepare(
+        "UPDATE draft_settings SET status='in_progress', current_pick_no=1, timer_deadline=? WHERE id=1"
+      )
+        .bind(Date.now() - 1000)
+        .run();
+
+      // Distinct DO name forces a fresh construction; rehydrate() should fire
+      // alarm() synchronously because the deadline has already passed.
+      const stub = env.DRAFT_ROOM.get(env.DRAFT_ROOM.idFromName("rehydrate-past"));
+      // Touch the instance to ensure construction completes.
+      await runInDurableObject(stub, (_inst: DraftRoom) => undefined);
+
+      expect(await statusInD1()).toBe("paused");
     });
   });
 });
