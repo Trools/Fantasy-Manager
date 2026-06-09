@@ -45,7 +45,11 @@ export async function signSession(claims: SessionClaims, secret: string): Promis
 export async function verifySession(token: string, secret: string): Promise<SessionClaims | null> {
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
-  if (await hmac(body, secret) !== sig) return null;
+  const expected = await hmac(body, secret);
+  if (expected.length !== sig.length) return null;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
+  if (diff !== 0) return null;
   try {
     return JSON.parse(new TextDecoder().decode(unb64u(body))) as SessionClaims;
   } catch {

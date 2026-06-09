@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { hashPassword, verifyPassword, signSession } from "../../shared/crypto";
-import { getUserByUsername, getUserById, countUsers, type Env } from "../db";
+import { getUserByUsername, getUserById, type Env } from "../db";
 import { COOKIE, requireAuth } from "../middleware";
 import type { SessionClaims } from "../../shared/types";
 
@@ -23,10 +23,10 @@ authRoutes.post("/register", async c => {
   if (!username || !password) return c.json({ error: "username and password required" }, 400);
   if (await getUserByUsername(c.env.DRAFT_DB, username)) return c.json({ error: "username taken" }, 409);
   const { hash, salt } = await hashPassword(password);
-  const isFirst = (await countUsers(c.env.DRAFT_DB)) === 0;
   const res = await c.env.DRAFT_DB.prepare(
-    "INSERT INTO users (username,password_hash,password_salt,is_admin,created_at) VALUES (?,?,?,?,?)")
-    .bind(username, hash, salt, isFirst ? 1 : 0, Date.now()).run();
+    `INSERT INTO users (username,password_hash,password_salt,is_admin,created_at)
+     SELECT ?,?,?, CASE WHEN (SELECT COUNT(*) FROM users)=0 THEN 1 ELSE 0 END, ?`)
+    .bind(username, hash, salt, Date.now()).run();
   const u = await getUserById(c.env.DRAFT_DB, res.meta.last_row_id as number);
   const claims = issue(c, u!);
   setCookie(c, COOKIE, await signSession(claims, c.env.SESSION_SECRET), { httpOnly: true, sameSite: "Lax", path: "/", secure: true });
@@ -55,8 +55,15 @@ authRoutes.get("/me", requireAuth, async c => {
 
 authRoutes.post("/change-password", requireAuth, async c => {
   const cl = c.get("claims")!;
-  const { new_password } = await c.req.json();
+  const { current_password, new_password } = await c.req.json();
   if (!new_password || new_password.length < 4) return c.json({ error: "password too short" }, 400);
+  if (!cl.mustChangePwd) {
+    // Voluntary change — require and verify the current password.
+    if (!current_password) return c.json({ error: "current password incorrect" }, 401);
+    const u = await getUserById(c.env.DRAFT_DB, cl.userId);
+    if (!u || !(await verifyPassword(current_password, u.password_hash, u.password_salt)))
+      return c.json({ error: "current password incorrect" }, 401);
+  }
   const { hash, salt } = await hashPassword(new_password);
   await c.env.DRAFT_DB.prepare(
     "UPDATE users SET password_hash=?, password_salt=?, must_change_password=0, token_version=token_version+1 WHERE id=?")

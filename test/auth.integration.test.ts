@@ -37,11 +37,11 @@ function me(cookie?: string) {
   });
 }
 
-function changePassword(cookie: string, new_password: string) {
+function changePassword(cookie: string, new_password: string, current_password?: string) {
   return SELF.fetch(`${BASE}/api/change-password`, {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
-    body: JSON.stringify({ new_password }),
+    body: JSON.stringify(current_password !== undefined ? { current_password, new_password } : { new_password }),
   });
 }
 
@@ -113,7 +113,7 @@ describe("auth integration", () => {
     const before = await me(cookieA);
     expect(before.status).toBe(200);
 
-    const changed = await changePassword(cookieA, "password2");
+    const changed = await changePassword(cookieA, "password2", "password1");
     expect(changed.status).toBe(200);
     // A fresh, valid cookie is issued on the change-password response.
     const cookieB = sessionCookie(changed);
@@ -128,5 +128,45 @@ describe("auth integration", () => {
     // The NEW cookie still works.
     const afterNew = await me(cookieB);
     expect(afterNew.status).toBe(200);
+  });
+
+  it("rejects voluntary change-password with a wrong current_password → 401", async () => {
+    const reg = await register("alice", "password1");
+    expect(reg.status).toBe(200);
+    const cookie = sessionCookie(reg);
+
+    const res = await changePassword(cookie, "password2", "wrongpassword");
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("current password incorrect");
+  });
+
+  it("rejects voluntary change-password with no current_password → 401", async () => {
+    const reg = await register("alice", "password1");
+    expect(reg.status).toBe(200);
+    const cookie = sessionCookie(reg);
+
+    // Omit current_password entirely (helper sends only new_password when current_password is undefined).
+    const res = await changePassword(cookie, "password2");
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("current password incorrect");
+  });
+
+  it("allows forced change-password (must_change_password=1) without current_password", async () => {
+    const reg = await register("alice", "password1");
+    expect(reg.status).toBe(200);
+
+    // Directly mark the user as needing a forced password reset.
+    await env.DRAFT_DB.prepare("UPDATE users SET must_change_password=1 WHERE username='alice'").run();
+
+    // Log in again so the session cookie reflects must_change_password=1.
+    const loginRes = await login("alice", "password1");
+    expect(loginRes.status).toBe(200);
+    const forcedCookie = sessionCookie(loginRes);
+
+    // Forced path: no current_password required.
+    const res = await changePassword(forcedCookie, "newpassword");
+    expect(res.status).toBe(200);
   });
 });
