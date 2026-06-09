@@ -113,4 +113,97 @@ describe("players integration", () => {
     const listBody = (await list.json()) as { players: Player[] };
     expect(listBody.players.some((p) => p.full_name === "Carvajal")).toBe(true);
   });
+
+  it("PUT /players/:id (admin) partial update changes only provided fields and GET reflects it", async () => {
+    const id = await insertPlayer("Germany", "GER", "MID", "Kimmich");
+    const adminReg = await register("admin", "password1");
+    const adminCookie = sessionCookie(adminReg);
+
+    const res = await SELF.fetch(`${BASE}/api/players/${id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", cookie: adminCookie },
+      body: JSON.stringify({ club: "Bayern Munich" }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { ok: boolean }).toEqual({ ok: true });
+
+    const list = await getPlayers(adminCookie);
+    const listBody = (await list.json()) as { players: Player[] };
+    const updated = listBody.players.find((p) => p.id === id);
+    expect(updated).toBeDefined();
+    expect(updated!.club).toBe("Bayern Munich");
+    // Unchanged fields are preserved.
+    expect(updated!.full_name).toBe("Kimmich");
+    expect(updated!.position).toBe("MID");
+  });
+
+  it("PUT /players/:id with an invalid position → 400", async () => {
+    const id = await insertPlayer("Germany", "GER", "MID", "Kimmich");
+    const adminReg = await register("admin", "password1");
+    const adminCookie = sessionCookie(adminReg);
+
+    const res = await SELF.fetch(`${BASE}/api/players/${id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", cookie: adminCookie },
+      body: JSON.stringify({ position: "STRIKER" }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("bad position");
+  });
+
+  it("PUT /players/:id with a non-existent id → 404", async () => {
+    const adminReg = await register("admin", "password1");
+    const adminCookie = sessionCookie(adminReg);
+
+    const res = await SELF.fetch(`${BASE}/api/players/99999`, {
+      method: "PUT",
+      headers: { "content-type": "application/json", cookie: adminCookie },
+      body: JSON.stringify({ club: "Ghost FC" }),
+    });
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("player not found");
+  });
+
+  it("DELETE /players/:id with a non-existent id → 404", async () => {
+    const adminReg = await register("admin", "password1");
+    const adminCookie = sessionCookie(adminReg);
+
+    const res = await SELF.fetch(`${BASE}/api/players/99999`, {
+      method: "DELETE",
+      headers: { cookie: adminCookie },
+    });
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("player not found");
+  });
+
+  it("blockIfMustChange: GET /api/players → 403 when must_change_password is set", async () => {
+    await insertPlayer("France", "FRA", "FWD", "Mbappe");
+
+    // Register user; first user is admin but must_change_password is 0 on register.
+    await register("admin", "password1");
+    const bobReg = await register("bob", "password2");
+    expect(bobReg.status).toBe(200);
+    const bobBody = (await bobReg.json()) as { user: { id: number } };
+    const bobId = bobBody.user.id;
+
+    // Set must_change_password=1 directly in DB.
+    await env.DRAFT_DB.prepare("UPDATE users SET must_change_password=1 WHERE id=?").bind(bobId).run();
+
+    // Log in again so the session cookie reflects the updated must_change_password flag.
+    const loginRes = await SELF.fetch(`${BASE}/api/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username: "bob", password: "password2" }),
+    });
+    expect(loginRes.status).toBe(200);
+    const forcedCookie = loginRes.headers.get("set-cookie")!.split(";")[0]!;
+
+    const res = await getPlayers(forcedCookie);
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("must_change_password");
+  });
 });

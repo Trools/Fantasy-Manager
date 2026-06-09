@@ -24,6 +24,8 @@ adminRoutes.put("/admin/settings", requireAuth, requireAdmin, async c => {
   if (row.status !== "lobby") return c.json({ error: "can only edit settings in the lobby" }, 409);
 
   const { total_picks, seconds_per_pick, pos_min, pos_max, max_per_country, order_mode } = await c.req.json();
+  if (!Number.isInteger(total_picks) || total_picks < 1) return c.json({ error: "total_picks must be a positive integer" }, 400);
+  if (!Number.isInteger(seconds_per_pick) || seconds_per_pick < 5) return c.json({ error: "seconds_per_pick must be an integer of at least 5" }, 400);
   const errs = validateSettings({ total_picks, pos_min, pos_max, max_per_country });
   if (errs.length) return c.json({ error: errs.join("; ") }, 400);
   if (order_mode !== "snake" && order_mode !== "linear") return c.json({ error: "order_mode must be 'snake' or 'linear'" }, 400);
@@ -103,10 +105,13 @@ adminRoutes.post("/admin/users/:id/demote", requireAuth, requireAdmin, async c =
   const target = await getUserById(db, id);
   if (!target) return c.json({ error: "user not found" }, 404);
 
-  if (target.is_admin) {
-    const admins = await db.prepare("SELECT COUNT(*) AS n FROM users WHERE is_admin=1").first<{ n: number }>();
-    if ((admins?.n ?? 0) <= 1) return c.json({ error: "cannot demote the last admin" }, 409);
-  }
+  // If the target is already a non-admin, nothing to do.
+  if (!target.is_admin) return c.json({ ok: true });
+
+  // Guard: cannot remove the last admin.
+  const admins = await db.prepare("SELECT COUNT(*) AS n FROM users WHERE is_admin=1").first<{ n: number }>();
+  if ((admins?.n ?? 0) <= 1) return c.json({ error: "cannot demote the last admin" }, 409);
+
   await db.prepare("UPDATE users SET is_admin=0 WHERE id=?").bind(id).run();
   return c.json({ ok: true });
 });

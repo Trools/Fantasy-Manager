@@ -32,6 +32,9 @@ playerRoutes.put("/players/:id", requireAuth, requireAdmin, async c => {
   const vals: unknown[] = [];
   for (const f of fields) if (f in p) { sets.push(`${f}=?`); vals.push(p[f]); }
   if (!sets.length) return c.json({ error: "no fields to update" }, 400);
+  // Existence precheck — avoids false-404 when identical values produce 0 changes.
+  const exists = await c.env.DRAFT_DB.prepare("SELECT 1 FROM players WHERE id=?").bind(id).first();
+  if (!exists) return c.json({ error: "player not found" }, 404);
   vals.push(id);
   await c.env.DRAFT_DB.prepare(`UPDATE players SET ${sets.join(",")} WHERE id=?`).bind(...vals).run();
   await callDO(c.env, "refresh", getCookie(c, COOKIE) ?? "");
@@ -40,6 +43,9 @@ playerRoutes.put("/players/:id", requireAuth, requireAdmin, async c => {
 
 playerRoutes.delete("/players/:id", requireAuth, requireAdmin, async c => {
   const id = Number(c.req.param("id"));
+  // Existence precheck before any further checks.
+  const exists = await c.env.DRAFT_DB.prepare("SELECT 1 FROM players WHERE id=?").bind(id).first();
+  if (!exists) return c.json({ error: "player not found" }, 404);
   const drafted = await c.env.DRAFT_DB.prepare("SELECT 1 FROM picks WHERE player_id=?").bind(id).first();
   if (drafted) return c.json({ error: "player already drafted; disable instead of delete" }, 409);
   await c.env.DRAFT_DB.prepare("UPDATE players SET active=0 WHERE id=?").bind(id).run();

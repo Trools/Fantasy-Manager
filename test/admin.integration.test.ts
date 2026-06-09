@@ -199,6 +199,66 @@ describe("admin integration", () => {
     expect(row!.is_admin).toBe(0);
   });
 
+  it("PUT /admin/settings with seconds_per_pick: 0 → 400", async () => {
+    const admin = await register("admin", "password1");
+    const cookie = sessionCookie(admin);
+
+    const res = await adminPut("settings", cookie, { ...VALID_SETTINGS, seconds_per_pick: 0 });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("seconds_per_pick");
+  });
+
+  it("PUT /admin/settings with an invalid order_mode → 400", async () => {
+    const admin = await register("admin", "password1");
+    const cookie = sessionCookie(admin);
+
+    const res = await adminPut("settings", cookie, { ...VALID_SETTINGS, order_mode: "random" });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("order_mode");
+  });
+
+  it("promote a non-existent user id → 404", async () => {
+    const admin = await register("admin", "password1");
+    const cookie = sessionCookie(admin);
+
+    const res = await adminPost("users/99999/promote", cookie);
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("user not found");
+  });
+
+  it("demote a user who is already non-admin → 200 ok (no-op)", async () => {
+    const admin = await register("admin", "password1");
+    const adminCookie = sessionCookie(admin);
+    const bob = await register("bob", "password2");
+    const bobBody = (await bob.json()) as { user: { id: number } };
+    const bobId = bobBody.user.id;
+
+    // bob is already non-admin (second registration).
+    const res = await adminPost(`users/${bobId}/demote`, adminCookie);
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { ok: boolean }).toEqual({ ok: true });
+
+    // bob is still non-admin.
+    const row = await env.DRAFT_DB.prepare("SELECT is_admin FROM users WHERE id=?")
+      .bind(bobId).first<{ is_admin: number }>();
+    expect(row!.is_admin).toBe(0);
+  });
+
+  it("demote last admin still → 409", async () => {
+    const admin = await register("admin", "password1");
+    const adminBody = (await admin.json()) as { user: { id: number } };
+    const adminId = adminBody.user.id;
+    const adminCookie = sessionCookie(admin);
+
+    const res = await adminPost(`users/${adminId}/demote`, adminCookie);
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("cannot demote the last admin");
+  });
+
   it("reset-draft clears picks and participants and returns to lobby", async () => {
     const admin = await register("admin", "password1");
     const adminCookie = sessionCookie(admin);
