@@ -1,0 +1,10 @@
+{
+  "name": "worldcup-draft",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2025-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application" },
+  "durable_objects": { "bindings": [{ "name": "DRAFT_ROOM", "class_name": "DraftRoom" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DraftRoom"] }],
+  "d1_databases": [{ "binding": "DRAFT_DB", "database_name": "worldcup-draft", "database_id": "PLACEHOLDER_SET_BY_WS7", "migrations_dir": "migrations" }]
+}
