@@ -476,6 +476,44 @@ describe("draft-room integration", () => {
       expect(s.current_pick_no).toBe(2);
     });
 
+    it("pick-on-behalf while paused records the pick, resumes draft, and sets a fresh timer", async () => {
+      // Documents the intended timeout-resolution behavior: pick-on-behalf is the
+      // mechanism for resolving an expired timer. Calling it while paused should
+      // record the pick for the current picker (attributed to admin), flip status
+      // back to in_progress, advance current_pick_no, and install a fresh timer_deadline.
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      const fwd = await insertPlayer("France", "FRA", "FWD", "Mbappe");
+      await cmd("start");
+
+      // Pause the draft (simulates timer expiry or manual pause).
+      await cmd("pause");
+      const pausedS = await settings();
+      expect(pausedS.status).toBe("paused");
+
+      const before = Date.now();
+      const res = await cmd("pick-on-behalf", { player_id: fwd, admin_id: admin });
+      expect(res.status).toBe(200);
+
+      // Pick row must be recorded with the admin as picked_by_user_id and u1 as the owner.
+      const pick = await env.DRAFT_DB.prepare(
+        "SELECT user_id, picked_by_user_id FROM picks WHERE player_id=?"
+      )
+        .bind(fwd)
+        .first<{ user_id: number; picked_by_user_id: number }>();
+      expect(pick!.user_id).toBe(u1);
+      expect(pick!.picked_by_user_id).toBe(admin);
+
+      const s = await settings();
+      // Draft must have resumed (not stayed paused).
+      expect(s.status).toBe("in_progress");
+      // Pick number must have advanced by 1.
+      expect(s.current_pick_no).toBe(2);
+      // A fresh timer_deadline must be set in the future.
+      expect(s.timer_deadline).not.toBeNull();
+      expect(s.timer_deadline!).toBeGreaterThan(before);
+    });
+
     async function resetMainCache(): Promise<void> {
       const reset = runInDurableObject as unknown as (
         s: DurableObjectStub,

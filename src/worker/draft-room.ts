@@ -59,6 +59,7 @@ export class DraftRoom {
     switch (cmd) {
       case "refresh": {
         this.cache = undefined;
+        this.playerMap = undefined;
         this.broadcast({ t: "state", state: await this.buildState() });
         return Response.json({ ok: true });
       }
@@ -183,6 +184,9 @@ export class DraftRoom {
       }
 
       case "pick-on-behalf": {
+        // Intentional: pick-on-behalf is the timeout-resolution action. When called while
+        // the draft is paused (e.g. timer expired), it records the pick for the current
+        // picker AND resumes the draft (status → in_progress, new timer_deadline set).
         const state = (this.cache = await this.buildState());
         if (state.status !== "in_progress" && state.status !== "paused")
           return Response.json({ error: "Draft not active" }, { status: 409 });
@@ -212,11 +216,15 @@ export class DraftRoom {
     }
   }
 
-  /** Uniform random integer in [0, max) using crypto.getRandomValues. */
+  /** Uniform random integer in [0, max) via rejection sampling (no modulo bias). */
   private randInt(max: number): number {
-    const buf = new Uint32Array(1);
-    crypto.getRandomValues(buf);
-    return buf[0]! % max;
+    // uniform integer in [0, max) via rejection sampling (no modulo bias)
+    if (max <= 0) return 0;
+    const limit = Math.floor(256 / max) * max;
+    const buf = new Uint8Array(1);
+    let x: number;
+    do { crypto.getRandomValues(buf); x = buf[0]!; } while (x >= limit);
+    return x % max;
   }
 
   private orderFromState(state: DraftState): number[] {
