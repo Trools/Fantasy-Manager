@@ -1,7 +1,9 @@
 import type { SessionClaims } from "./types";
 
 const enc = new TextEncoder();
-const ITER = 200_000;
+// Cloudflare Workers' production runtime caps PBKDF2 at 100k iterations
+// (NotSupportedError above that). This is the supported maximum.
+const ITER = 100_000;
 
 function b64u(buf: ArrayBuffer | Uint8Array): string {
   const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
