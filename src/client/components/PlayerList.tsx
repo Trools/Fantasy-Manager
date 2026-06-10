@@ -164,9 +164,9 @@ export default function PlayerList() {
               text-xs font-bold text-(color:--color-text-primary)
               focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50"
           >
-            <option value="">All countries</option>
+            <option value="" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">All countries</option>
             {countries.map((c) => (
-              <option key={c} value={c}>
+              <option key={c} value={c} className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">
                 {c}
               </option>
             ))}
@@ -184,11 +184,11 @@ export default function PlayerList() {
               text-xs font-bold text-(color:--color-text-primary)
               focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50"
           >
-            <option value="name-asc">Sort: Name A–Z</option>
-            <option value="name-desc">Sort: Name Z–A</option>
-            <option value="country-asc">Sort: Country A–Z</option>
-            <option value="position-asc">Sort: Position GK→FWD</option>
-            <option value="number-asc">Sort: Number #1→</option>
+            <option value="name-asc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Name A–Z</option>
+            <option value="name-desc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Name Z–A</option>
+            <option value="country-asc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Country A–Z</option>
+            <option value="position-asc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Position GK→FWD</option>
+            <option value="number-asc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Number #1→</option>
           </select>
 
           {/* Clear filters */}

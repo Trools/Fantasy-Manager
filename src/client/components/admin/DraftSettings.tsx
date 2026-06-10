@@ -119,7 +119,9 @@ export default function DraftSettings({ editable }: { editable: boolean }) {
       <div className={`mb-[18px] ${tile}`}>
         <div className={label}>Order mode</div>
         <div className="flex gap-1.5">
-          {(["snake", "linear"] as const).map((mode) => {
+          {(["snake", "linear"] as const)
+            .filter((mode) => editable || s.order_mode === mode)
+            .map((mode) => {
             const active = s.order_mode === mode;
             return (
               <button key={mode} type="button" disabled={!editable} onClick={() => editable && update({ order_mode: mode })}

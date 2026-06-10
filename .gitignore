@@ -7,3 +7,4 @@ dist/
 .seed.sql
 .playwright-mcp/
 .design-ref/
+data/.fifa-fc26.csv
