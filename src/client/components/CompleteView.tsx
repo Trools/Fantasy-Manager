@@ -63,10 +63,10 @@ export default function CompleteView() {
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-[--color-text-primary] mb-2">
+        <h1 className="text-3xl font-bold text-(color:--color-text-primary) mb-2">
           Draft Complete!
         </h1>
-        <p className="text-[--color-text-secondary]">
+        <p className="text-(color:--color-text-secondary)">
           {picks.length} players drafted by {participants.length} participants
         </p>
       </div>
@@ -82,9 +82,9 @@ export default function CompleteView() {
       </div>
 
       {/* Draft board */}
-      <div className="bg-[--color-bg-surface] rounded-lg border border-[--color-border-default] overflow-hidden mb-8">
-        <div className="px-4 py-3 border-b border-[--color-border-default]">
-          <h2 className="font-semibold text-[--color-text-primary]">
+      <div className="bg-(--color-bg-surface) rounded-lg border border-(color:--color-border-default) overflow-hidden mb-8">
+        <div className="px-4 py-3 border-b border-(color:--color-border-default)">
+          <h2 className="font-semibold text-(color:--color-text-primary)">
             Final Draft Board
           </h2>
         </div>
@@ -102,14 +102,14 @@ export default function CompleteView() {
           return (
             <div
               key={participant.user_id}
-              className="bg-[--color-bg-surface] rounded-lg border border-[--color-border-default] overflow-hidden"
+              className="bg-(--color-bg-surface) rounded-lg border border-(color:--color-border-default) overflow-hidden"
             >
-              <div className="px-4 py-3 border-b border-[--color-border-default] flex items-center justify-between">
+              <div className="px-4 py-3 border-b border-(color:--color-border-default) flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-[--color-accent-primary] text-gray-950 text-xs font-bold flex items-center justify-center">
+                  <span className="w-6 h-6 rounded-full bg-(--color-accent-primary) text-gray-950 text-xs font-bold flex items-center justify-center">
                     {participant.draft_order}
                   </span>
-                  <h3 className="font-semibold text-[--color-text-primary]">
+                  <h3 className="font-semibold text-(color:--color-text-primary)">
                     {participant.username}
                   </h3>
                 </div>
@@ -127,7 +127,7 @@ export default function CompleteView() {
                 </Button>
               </div>
 
-              <div className="divide-y divide-[--color-border-muted]">
+              <div className="divide-y divide-(color:--color-border-muted)">
                 {userPicks
                   .sort((a, b) => a.overall_no - b.overall_no)
                   .map((pick) => {
@@ -144,7 +144,7 @@ export default function CompleteView() {
                           size="sm"
                         />
                         <PositionBadge position={player.position} size="sm" />
-                        <span className="text-sm text-[--color-text-primary] truncate">
+                        <span className="text-sm text-(color:--color-text-primary) truncate">
                           {player.full_name}
                         </span>
                       </div>

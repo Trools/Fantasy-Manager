@@ -43,7 +43,7 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[--color-bg-primary] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-(--color-bg-primary) px-4">
       <div className="w-full max-w-sm">
         {/* Banner */}
         <div className="mb-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
@@ -54,7 +54,7 @@ export default function ChangePasswordPage() {
 
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-[--color-text-primary] mb-2">
+          <h1 className="text-2xl font-bold text-(color:--color-text-primary) mb-2">
             Set New Password
           </h1>
         </div>
@@ -70,7 +70,7 @@ export default function ChangePasswordPage() {
           <div>
             <label
               htmlFor="newPassword"
-              className="block text-sm font-medium text-[--color-text-secondary] mb-1.5"
+              className="block text-sm font-medium text-(color:--color-text-secondary) mb-1.5"
             >
               New Password
             </label>
@@ -79,9 +79,9 @@ export default function ChangePasswordPage() {
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-                text-[--color-text-primary] placeholder-[--color-text-muted]
-                focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50 focus:border-[--color-accent-primary]"
+              className="w-full px-4 py-2.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+                text-(color:--color-text-primary) placeholder-(--color-text-muted)
+                focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50 focus:border-(color:--color-accent-primary)"
               placeholder="Enter new password"
               autoFocus
               required
@@ -91,7 +91,7 @@ export default function ChangePasswordPage() {
           <div>
             <label
               htmlFor="confirmPassword"
-              className="block text-sm font-medium text-[--color-text-secondary] mb-1.5"
+              className="block text-sm font-medium text-(color:--color-text-secondary) mb-1.5"
             >
               Confirm Password
             </label>
@@ -100,9 +100,9 @@ export default function ChangePasswordPage() {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-                text-[--color-text-primary] placeholder-[--color-text-muted]
-                focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50 focus:border-[--color-accent-primary]"
+              className="w-full px-4 py-2.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+                text-(color:--color-text-primary) placeholder-(--color-text-muted)
+                focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50 focus:border-(color:--color-accent-primary)"
               placeholder="Confirm new password"
               required
             />

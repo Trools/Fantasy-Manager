@@ -18,8 +18,8 @@ export default function TopBar() {
   return (
     <header
       className={`
-        sticky top-0 z-50 border-b border-[--color-border-default]
-        ${isMyTurn ? "bg-[--color-accent-primary]/10" : "bg-[--color-bg-surface]"}
+        sticky top-0 z-50 border-b border-(color:--color-border-default)
+        ${isMyTurn ? "bg-(--color-accent-primary)/10" : "bg-(--color-bg-surface)"}
       `}
     >
       <div className="max-w-7xl mx-auto px-4 py-3">
@@ -28,7 +28,7 @@ export default function TopBar() {
           <div className="flex items-center gap-4">
             <Link
               to="/"
-              className="text-lg font-bold text-[--color-text-primary] hover:text-[--color-accent-primary]"
+              className="text-lg font-bold text-(color:--color-text-primary) hover:text-(color:--color-accent-primary)"
             >
               WC 2026 Draft
             </Link>
@@ -36,11 +36,11 @@ export default function TopBar() {
             {state && (
               <div className="hidden sm:flex items-center gap-3 text-sm">
                 {state.round_no && (
-                  <span className="text-[--color-text-secondary]">
+                  <span className="text-(color:--color-text-secondary)">
                     Round {state.round_no} of {state.settings.total_picks}
                   </span>
                 )}
-                <span className="px-2 py-0.5 rounded bg-[--color-bg-elevated] text-[--color-text-muted] text-xs uppercase">
+                <span className="px-2 py-0.5 rounded bg-(--color-bg-elevated) text-(color:--color-text-muted) text-xs uppercase">
                   {state.settings.order_mode}
                 </span>
               </div>
@@ -54,8 +54,8 @@ export default function TopBar() {
                 <div
                   className={`text-sm font-medium ${
                     isMyTurn
-                      ? "text-[--color-accent-primary]"
-                      : "text-[--color-text-secondary]"
+                      ? "text-(color:--color-accent-primary)"
+                      : "text-(color:--color-text-secondary)"
                   }`}
                 >
                   {isMyTurn ? "You're on the clock" : `On the clock: ${currentPicker?.username ?? "..."}`}
@@ -79,14 +79,14 @@ export default function TopBar() {
             {user?.is_admin && (
               <Link
                 to="/admin"
-                className="text-sm text-[--color-text-secondary] hover:text-[--color-text-primary]"
+                className="text-sm text-(color:--color-text-secondary) hover:text-(color:--color-text-primary)"
               >
                 Admin
               </Link>
             )}
 
             {/* User info */}
-            <span className="text-sm text-[--color-text-secondary]">
+            <span className="text-sm text-(color:--color-text-secondary)">
               {user?.username}
             </span>
 

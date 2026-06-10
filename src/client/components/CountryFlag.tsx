@@ -27,7 +27,7 @@ export default function CountryFlag({
       <span
         className={`
           inline-flex items-center justify-center rounded
-          bg-[--color-bg-elevated] text-[--color-text-secondary]
+          bg-(--color-bg-elevated) text-(color:--color-text-secondary)
           text-[10px] font-medium px-1.5 py-0.5
         `}
         aria-label={countryName || countryCode}

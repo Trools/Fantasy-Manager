@@ -11,24 +11,24 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary: `
-    bg-[--color-accent-primary] text-gray-950 font-semibold
-    hover:bg-[--color-accent-hover] active:bg-[--color-accent-hover]
-    disabled:bg-[--color-bg-elevated] disabled:text-[--color-text-muted]
+    bg-(--color-accent-primary) text-gray-950 font-semibold
+    hover:bg-(--color-accent-hover) active:bg-(--color-accent-hover)
+    disabled:bg-(--color-bg-elevated) disabled:text-(color:--color-text-muted)
   `,
   secondary: `
-    bg-[--color-bg-elevated] text-[--color-text-primary] border border-[--color-border-default]
-    hover:bg-[--color-bg-hover] active:bg-[--color-bg-hover]
-    disabled:bg-[--color-bg-surface] disabled:text-[--color-text-muted] disabled:border-[--color-border-muted]
+    bg-(--color-bg-elevated) text-(color:--color-text-primary) border border-(color:--color-border-default)
+    hover:bg-(--color-bg-hover) active:bg-(--color-bg-hover)
+    disabled:bg-(--color-bg-surface) disabled:text-(color:--color-text-muted) disabled:border-(color:--color-border-muted)
   `,
   destructive: `
     bg-red-600/20 text-red-400 border border-red-600/30
     hover:bg-red-600/30 active:bg-red-600/40
-    disabled:bg-[--color-bg-surface] disabled:text-[--color-text-muted] disabled:border-[--color-border-muted]
+    disabled:bg-(--color-bg-surface) disabled:text-(color:--color-text-muted) disabled:border-(color:--color-border-muted)
   `,
   ghost: `
-    bg-transparent text-[--color-text-secondary]
-    hover:bg-[--color-bg-hover] hover:text-[--color-text-primary]
-    disabled:text-[--color-text-muted]
+    bg-transparent text-(color:--color-text-secondary)
+    hover:bg-(--color-bg-hover) hover:text-(color:--color-text-primary)
+    disabled:text-(color:--color-text-muted)
   `,
 };
 
@@ -45,7 +45,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={`
           inline-flex items-center justify-center gap-2 transition-colors
-          focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50 focus:ring-offset-2 focus:ring-offset-[--color-bg-primary]
+          focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50 focus:ring-offset-2 focus:ring-offset-(color:--color-bg-primary)
           disabled:cursor-not-allowed
           ${variantStyles[variant]}
           ${sizeStyles[size]}

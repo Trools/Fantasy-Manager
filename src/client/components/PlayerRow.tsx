@@ -32,7 +32,7 @@ export default function PlayerRow({
         ${densityClasses}
         ${disabled
           ? "opacity-50 bg-transparent"
-          : "bg-[--color-bg-surface] hover:bg-[--color-bg-hover]"
+          : "bg-(--color-bg-surface) hover:bg-(--color-bg-hover)"
         }
       `}
     >
@@ -56,24 +56,24 @@ export default function PlayerRow({
             className={`
               font-medium truncate
               ${density === "inline" ? "text-sm" : "text-base"}
-              ${disabled ? "text-[--color-text-muted]" : "text-[--color-text-primary]"}
+              ${disabled ? "text-(color:--color-text-muted)" : "text-(color:--color-text-primary)"}
             `}
           >
             {player.full_name}
           </span>
           {player.shirt_number && density !== "inline" && (
-            <span className="text-xs text-[--color-text-muted]">
+            <span className="text-xs text-(color:--color-text-muted)">
               #{player.shirt_number}
             </span>
           )}
         </div>
         {showClub && player.club && density !== "inline" && (
-          <div className="text-sm text-[--color-text-secondary] truncate">
+          <div className="text-sm text-(color:--color-text-secondary) truncate">
             {player.club}
           </div>
         )}
         {disabled && disabledReason && (
-          <div className="text-xs text-[--color-accent-urgent] mt-0.5">
+          <div className="text-xs text-(color:--color-accent-urgent) mt-0.5">
             {disabledReason}
           </div>
         )}

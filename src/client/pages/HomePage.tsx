@@ -10,12 +10,12 @@ export default function HomePage() {
   // Connecting state
   if (connecting && !state) {
     return (
-      <div className="min-h-screen bg-[--color-bg-primary]">
+      <div className="min-h-screen bg-(--color-bg-primary)">
         <TopBar />
         <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
           <div className="text-center">
-            <div className="animate-spin w-8 h-8 border-2 border-[--color-accent-primary] border-t-transparent rounded-full mx-auto mb-4" />
-            <p className="text-[--color-text-secondary]">
+            <div className="animate-spin w-8 h-8 border-2 border-(color:--color-accent-primary) border-t-transparent rounded-full mx-auto mb-4" />
+            <p className="text-(color:--color-text-secondary)">
               Connecting to draft...
             </p>
           </div>
@@ -27,12 +27,12 @@ export default function HomePage() {
   // Error state
   if (error && !state) {
     return (
-      <div className="min-h-screen bg-[--color-bg-primary]">
+      <div className="min-h-screen bg-(--color-bg-primary)">
         <TopBar />
         <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
           <div className="text-center">
-            <p className="text-[--color-accent-urgent] mb-2">{error}</p>
-            <p className="text-[--color-text-secondary]">
+            <p className="text-(color:--color-accent-urgent) mb-2">{error}</p>
+            <p className="text-(color:--color-text-secondary)">
               Trying to reconnect...
             </p>
           </div>
@@ -59,7 +59,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[--color-bg-primary]">
+    <div className="min-h-screen bg-(--color-bg-primary)">
       <TopBar />
       {renderView()}
     </div>

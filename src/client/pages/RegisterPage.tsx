@@ -57,21 +57,21 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[--color-bg-primary] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-(--color-bg-primary) px-4">
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[--color-text-primary] mb-2">
+          <h1 className="text-3xl font-bold text-(color:--color-text-primary) mb-2">
             World Cup 2026 Draft
           </h1>
-          <p className="text-[--color-text-secondary]">
+          <p className="text-(color:--color-text-secondary)">
             Create your account to join the draft
           </p>
         </div>
 
         {/* First user hint */}
         {isFirstUser && (
-          <div className="mb-6 p-3 rounded-lg bg-[--color-accent-primary]/10 border border-[--color-accent-primary]/30 text-[--color-accent-primary] text-sm">
+          <div className="mb-6 p-3 rounded-lg bg-(--color-accent-primary)/10 border border-(color:--color-accent-primary)/30 text-(color:--color-accent-primary) text-sm">
             You're the first here — you'll be the draft admin.
           </div>
         )}
@@ -87,7 +87,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="username"
-              className="block text-sm font-medium text-[--color-text-secondary] mb-1.5"
+              className="block text-sm font-medium text-(color:--color-text-secondary) mb-1.5"
             >
               Username
             </label>
@@ -96,9 +96,9 @@ export default function RegisterPage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-                text-[--color-text-primary] placeholder-[--color-text-muted]
-                focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50 focus:border-[--color-accent-primary]"
+              className="w-full px-4 py-2.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+                text-(color:--color-text-primary) placeholder-(--color-text-muted)
+                focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50 focus:border-(color:--color-accent-primary)"
               placeholder="Choose a username"
               autoFocus
               required
@@ -108,7 +108,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-[--color-text-secondary] mb-1.5"
+              className="block text-sm font-medium text-(color:--color-text-secondary) mb-1.5"
             >
               Password
             </label>
@@ -117,9 +117,9 @@ export default function RegisterPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-                text-[--color-text-primary] placeholder-[--color-text-muted]
-                focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50 focus:border-[--color-accent-primary]"
+              className="w-full px-4 py-2.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+                text-(color:--color-text-primary) placeholder-(--color-text-muted)
+                focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50 focus:border-(color:--color-accent-primary)"
               placeholder="Choose a password"
               required
             />
@@ -128,7 +128,7 @@ export default function RegisterPage() {
           <div>
             <label
               htmlFor="confirmPassword"
-              className="block text-sm font-medium text-[--color-text-secondary] mb-1.5"
+              className="block text-sm font-medium text-(color:--color-text-secondary) mb-1.5"
             >
               Confirm Password
             </label>
@@ -137,9 +137,9 @@ export default function RegisterPage() {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-                text-[--color-text-primary] placeholder-[--color-text-muted]
-                focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50 focus:border-[--color-accent-primary]"
+              className="w-full px-4 py-2.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+                text-(color:--color-text-primary) placeholder-(--color-text-muted)
+                focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50 focus:border-(color:--color-accent-primary)"
               placeholder="Confirm your password"
               required
             />
@@ -151,11 +151,11 @@ export default function RegisterPage() {
         </form>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-sm text-[--color-text-secondary]">
+        <p className="mt-6 text-center text-sm text-(color:--color-text-secondary)">
           Already have an account?{" "}
           <Link
             to="/login"
-            className="text-[--color-accent-primary] hover:underline font-medium"
+            className="text-(color:--color-accent-primary) hover:underline font-medium"
           >
             Log in
           </Link>

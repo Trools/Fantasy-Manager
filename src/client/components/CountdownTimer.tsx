@@ -47,9 +47,9 @@ export default function CountdownTimer({
   const display = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
   const stateStyles: Record<TimerState, string> = {
-    normal: "text-[--color-text-primary]",
-    urgent: "text-[--color-accent-urgent] animate-pulse",
-    expired: "text-[--color-text-muted]",
+    normal: "text-(color:--color-text-primary)",
+    urgent: "text-(color:--color-accent-urgent) animate-pulse",
+    expired: "text-(color:--color-text-muted)",
   };
 
   return (
@@ -63,7 +63,7 @@ export default function CountdownTimer({
         {state === "expired" ? "TIME!" : display}
       </span>
       {state === "urgent" && remaining > 0 && (
-        <span className="text-xs text-[--color-accent-urgent] mt-1">
+        <span className="text-xs text-(color:--color-accent-urgent) mt-1">
           {remaining} seconds left
         </span>
       )}

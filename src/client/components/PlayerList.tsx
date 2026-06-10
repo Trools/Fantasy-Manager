@@ -92,9 +92,9 @@ export default function PlayerList() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name, club, or country..."
-          className="w-full px-4 py-2.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-            text-[--color-text-primary] placeholder-[--color-text-muted]
-            focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50 focus:border-[--color-accent-primary]"
+          className="w-full px-4 py-2.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+            text-(color:--color-text-primary) placeholder-(--color-text-muted)
+            focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50 focus:border-(color:--color-accent-primary)"
         />
 
         {/* Filter row */}
@@ -118,9 +118,9 @@ export default function PlayerList() {
           <select
             value={countryFilter}
             onChange={(e) => setCountryFilter(e.target.value)}
-            className="px-3 py-1.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-              text-sm text-[--color-text-primary]
-              focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50"
+            className="px-3 py-1.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+              text-sm text-(color:--color-text-primary)
+              focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50"
           >
             <option value="">All countries</option>
             {countries.map((c) => (
@@ -138,9 +138,9 @@ export default function PlayerList() {
               setSortField(field);
               setSortDir(dir);
             }}
-            className="px-3 py-1.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-              text-sm text-[--color-text-primary]
-              focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50"
+            className="px-3 py-1.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+              text-sm text-(color:--color-text-primary)
+              focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50"
           >
             <option value="name-asc">Name A–Z</option>
             <option value="name-desc">Name Z–A</option>
@@ -159,7 +159,7 @@ export default function PlayerList() {
       </div>
 
       {/* Player count */}
-      <div className="flex-shrink-0 text-sm text-[--color-text-secondary] pb-2">
+      <div className="flex-shrink-0 text-sm text-(color:--color-text-secondary) pb-2">
         {filteredPlayers.length} players available
       </div>
 
@@ -178,7 +178,7 @@ export default function PlayerList() {
           ))
         ) : (
           <div className="py-12 text-center">
-            <p className="text-[--color-text-muted]">
+            <p className="text-(color:--color-text-muted)">
               No available players match your filters
             </p>
             {hasFilters && (

@@ -32,14 +32,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[--color-bg-primary] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-(--color-bg-primary) px-4">
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-[--color-text-primary] mb-2">
+          <h1 className="text-3xl font-bold text-(color:--color-text-primary) mb-2">
             World Cup 2026 Draft
           </h1>
-          <p className="text-[--color-text-secondary]">
+          <p className="text-(color:--color-text-secondary)">
             Sign in to join the draft
           </p>
         </div>
@@ -55,7 +55,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="username"
-              className="block text-sm font-medium text-[--color-text-secondary] mb-1.5"
+              className="block text-sm font-medium text-(color:--color-text-secondary) mb-1.5"
             >
               Username
             </label>
@@ -64,9 +64,9 @@ export default function LoginPage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-                text-[--color-text-primary] placeholder-[--color-text-muted]
-                focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50 focus:border-[--color-accent-primary]"
+              className="w-full px-4 py-2.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+                text-(color:--color-text-primary) placeholder-(--color-text-muted)
+                focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50 focus:border-(color:--color-accent-primary)"
               placeholder="Enter your username"
               autoFocus
               required
@@ -76,7 +76,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-[--color-text-secondary] mb-1.5"
+              className="block text-sm font-medium text-(color:--color-text-secondary) mb-1.5"
             >
               Password
             </label>
@@ -85,9 +85,9 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-lg bg-[--color-bg-surface] border border-[--color-border-default]
-                text-[--color-text-primary] placeholder-[--color-text-muted]
-                focus:outline-none focus:ring-2 focus:ring-[--color-accent-primary]/50 focus:border-[--color-accent-primary]"
+              className="w-full px-4 py-2.5 rounded-lg bg-(--color-bg-surface) border border-(color:--color-border-default)
+                text-(color:--color-text-primary) placeholder-(--color-text-muted)
+                focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50 focus:border-(color:--color-accent-primary)"
               placeholder="Enter your password"
               required
             />
@@ -99,11 +99,11 @@ export default function LoginPage() {
         </form>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-sm text-[--color-text-secondary]">
+        <p className="mt-6 text-center text-sm text-(color:--color-text-secondary)">
           Don't have an account?{" "}
           <Link
             to="/register"
-            className="text-[--color-accent-primary] hover:underline font-medium"
+            className="text-(color:--color-accent-primary) hover:underline font-medium"
           >
             Create account
           </Link>

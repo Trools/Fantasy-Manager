@@ -13,12 +13,12 @@ export default function RosterPanel() {
   const { pos_min, pos_max } = state.settings;
 
   return (
-    <div className="bg-[--color-bg-surface] rounded-lg border border-[--color-border-default] overflow-hidden">
-      <div className="px-4 py-3 border-b border-[--color-border-default]">
-        <h2 className="font-semibold text-[--color-text-primary]">Your Roster</h2>
+    <div className="bg-(--color-bg-surface) rounded-lg border border-(color:--color-border-default) overflow-hidden">
+      <div className="px-4 py-3 border-b border-(color:--color-border-default)">
+        <h2 className="font-semibold text-(color:--color-text-primary)">Your Roster</h2>
       </div>
 
-      <div className="divide-y divide-[--color-border-muted]">
+      <div className="divide-y divide-(color:--color-border-muted)">
         {POSITIONS.map((pos) => {
           const players = myRoster.get(pos) ?? [];
           const count = players.length;
@@ -35,7 +35,7 @@ export default function RosterPanel() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <PositionBadge position={pos} size="sm" />
-                  <span className="text-sm text-[--color-text-secondary]">
+                  <span className="text-sm text-(color:--color-text-secondary)">
                     {count} / {min}–{max}
                   </span>
                 </div>
@@ -55,7 +55,7 @@ export default function RosterPanel() {
                   )}
                   {isAtMax && (
                     <svg
-                      className="w-4 h-4 text-[--color-text-muted]"
+                      className="w-4 h-4 text-(color:--color-text-muted)"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -70,13 +70,13 @@ export default function RosterPanel() {
               </div>
 
               {/* Fill meter */}
-              <div className="h-1.5 bg-[--color-bg-elevated] rounded-full overflow-hidden mb-2">
+              <div className="h-1.5 bg-(--color-bg-elevated) rounded-full overflow-hidden mb-2">
                 <div
                   className={`h-full transition-all ${
                     isBelowMin
                       ? "bg-amber-500"
                       : isAtMax
-                      ? "bg-[--color-text-muted]"
+                      ? "bg-(--color-text-muted)"
                       : "bg-green-500"
                   }`}
                   style={{ width: `${Math.min(100, (count / max) * 100)}%` }}
@@ -91,7 +91,7 @@ export default function RosterPanel() {
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-[--color-text-muted] italic">
+                <div className="text-xs text-(color:--color-text-muted) italic">
                   No players drafted yet
                 </div>
               )}
@@ -107,7 +107,7 @@ function RosterPlayer({ player }: { player: Player }) {
   return (
     <div className="flex items-center gap-2 py-1">
       <CountryFlag countryCode={player.country_code} size="sm" />
-      <span className="text-sm text-[--color-text-primary] truncate">
+      <span className="text-sm text-(color:--color-text-primary) truncate">
         {player.full_name}
       </span>
     </div>

@@ -12,8 +12,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[--color-bg-primary]">
-        <div className="text-[--color-text-secondary]">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-(--color-bg-primary)">
+        <div className="text-(color:--color-text-secondary)">Loading...</div>
       </div>
     );
   }
@@ -34,20 +34,20 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[--color-bg-primary]">
-        <div className="text-[--color-text-secondary]">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-(--color-bg-primary)">
+        <div className="text-(color:--color-text-secondary)">Loading...</div>
       </div>
     );
   }
 
   if (!user?.is_admin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[--color-bg-primary]">
+      <div className="min-h-screen flex items-center justify-center bg-(--color-bg-primary)">
         <div className="text-center">
-          <h1 className="text-xl font-semibold text-[--color-text-primary] mb-2">
+          <h1 className="text-xl font-semibold text-(color:--color-text-primary) mb-2">
             Admins Only
           </h1>
-          <p className="text-[--color-text-secondary]">
+          <p className="text-(color:--color-text-secondary)">
             You don't have permission to access this page.
           </p>
         </div>
