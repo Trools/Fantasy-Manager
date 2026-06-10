@@ -7,6 +7,8 @@ export interface Player {
   id: number; country: string; country_code: string; position: Position;
   shirt_number: number | null; full_name: string; name_on_shirt: string | null;
   club: string | null; dob: string | null; active: boolean;
+  /** EA FC26 overall (higher = better); null when the source has no entry. */
+  rating: number | null;
 }
 export interface PublicUser { id: number; username: string; is_admin: boolean; }
 export interface AdminUser { id: number; username: string; is_admin: boolean; }
@@ -45,6 +47,7 @@ export type ServerMsg =
   | { t: "pick_made"; pick: Pick; player: Player; by_username: string }
   | { t: "timer"; deadline: number | null }
   | { t: "error"; code: string; message: string }
+  | { t: "kicked" }                                 // admin removed you from the lobby
   | { t: "pong" };
 
 /** REST response shapes. */

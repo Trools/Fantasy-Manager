@@ -96,6 +96,9 @@ export async function undoPick(): Promise<void> {
 export async function resetDraft(): Promise<void> {
   return request("/admin/reset-draft", { method: "POST" });
 }
+export async function kickParticipant(id: number): Promise<void> {
+  return request(`/admin/participants/${id}/kick`, { method: "POST" });
+}
 export async function getUsers(): Promise<AdminUser[]> {
   const data = await request<{ users: AdminUser[] }>("/admin/users");
   return data.users;

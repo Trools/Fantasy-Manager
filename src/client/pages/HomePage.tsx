@@ -5,12 +5,44 @@ import LiveDraftView from "../components/LiveDraftView";
 import CompleteView from "../components/CompleteView";
 
 export default function HomePage() {
-  const { state, connecting, error } = useDraft();
+  const { state, connecting, error, kicked, rejoin } = useDraft();
 
   const pageBg = {
     background:
       "radial-gradient(1100px 380px at 80% -140px, rgba(255,61,127,0.10), transparent 70%), #0A0E16",
   };
+
+  // Kicked state — admin removed us from the lobby. Stay out until the user rejoins.
+  if (kicked) {
+    return (
+      <div className="min-h-screen bg-(--color-bg-primary)" style={pageBg}>
+        <TopBar />
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <div
+            className="text-center max-w-sm mx-auto px-6 py-6 rounded-2xl"
+            style={{
+              background: "rgba(255,90,77,0.07)",
+              border: "1px solid rgba(255,90,77,0.30)",
+            }}
+          >
+            <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-(color:--color-accent-urgent) mb-2">
+              Removed from lobby
+            </p>
+            <p className="text-sm text-(color:--color-text-primary) mb-4">
+              An admin removed you from the lobby.
+            </p>
+            <button
+              type="button"
+              onClick={rejoin}
+              className="rounded-[12px] bg-(--color-accent-primary) px-5 py-2.5 text-sm font-extrabold uppercase tracking-wide text-white"
+            >
+              Rejoin
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Connecting state
   if (connecting && !state) {

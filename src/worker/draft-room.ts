@@ -250,6 +250,34 @@ export class DraftRoom {
         return Response.json({ ok: true });
       }
 
+      case "kick": {
+        const row = await getSettingsRow(db);
+        if (row?.status !== "lobby")
+          return Response.json({ error: "Can only kick from the lobby" }, { status: 409 });
+        const targetId = Number(body.user_id);
+        if (!Number.isInteger(targetId))
+          return Response.json({ error: "Invalid user_id" }, { status: 400 });
+        if (targetId === claims.userId)
+          return Response.json({ error: "You cannot kick yourself" }, { status: 400 });
+
+        await db.prepare("DELETE FROM participants WHERE user_id=?").bind(targetId).run();
+
+        // Evict the kicked user's live socket(s): tell them, then close. Closing before
+        // the broadcast means this command does no re-registration (unlike `refresh`),
+        // so the deleted row stays gone.
+        for (const ws of this.ctx.getWebSockets()) {
+          const att = ws.deserializeAttachment() as { userId?: number } | null;
+          if (att?.userId === targetId) {
+            try { ws.send(JSON.stringify({ t: "kicked" } satisfies ServerMsg)); } catch {}
+            ws.close(1000, "kicked");
+          }
+        }
+
+        this.cache = undefined;
+        this.broadcast({ t: "state", state: await this.buildState() });
+        return Response.json({ ok: true });
+      }
+
       default:
         return new Response("not found", { status: 404 });
     }

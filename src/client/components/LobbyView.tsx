@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useDraft } from "../hooks/useDraft";
 import { useAuth } from "../hooks/useAuth";
+import * as api from "../utils/api";
+import { ApiError } from "../utils/api";
 import DraftSettings from "./admin/DraftSettings";
 import DraftControls from "./admin/DraftControls";
 
@@ -14,6 +17,21 @@ function avatarColor(name: string): string {
 export default function LobbyView() {
   const { state, connected } = useDraft();
   const { user } = useAuth();
+  const [kickBusy, setKickBusy] = useState<number | null>(null);
+  const [kickError, setKickError] = useState<string | null>(null);
+
+  async function handleKick(userId: number, username: string) {
+    if (!window.confirm(`Remove ${username} from the lobby?`)) return;
+    setKickBusy(userId);
+    setKickError(null);
+    try {
+      await api.kickParticipant(userId);
+    } catch (e) {
+      setKickError(e instanceof ApiError ? e.message : "Failed to remove player");
+    } finally {
+      setKickBusy(null);
+    }
+  }
 
   if (!state) {
     return (
@@ -112,6 +130,21 @@ export default function LobbyView() {
                         YOU
                       </span>
                     )}
+
+                    {/* Admin: kick from lobby */}
+                    {isAdmin && !you && state.status === "lobby" && (
+                      <button
+                        type="button"
+                        title={`Remove ${p.username} from the lobby`}
+                        aria-label={`Remove ${p.username} from the lobby`}
+                        disabled={kickBusy === p.user_id}
+                        onClick={() => handleKick(p.user_id, p.username)}
+                        className="flex h-[26px] w-[26px] flex-none items-center justify-center rounded-[8px] text-[15px] font-black leading-none text-[#FF8A7A] transition-colors hover:bg-[rgba(255,90,77,0.12)] disabled:opacity-40"
+                        style={{ border: "1px solid rgba(255,90,77,0.30)" }}
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 );
               })
@@ -121,6 +154,12 @@ export default function LobbyView() {
               </div>
             )}
           </div>
+
+          {kickError && (
+            <div className="mt-3 rounded-[11px] border border-[rgba(255,90,77,0.32)] bg-[rgba(255,90,77,0.08)] px-3.5 py-2 text-[12px] font-semibold text-[#F4C7C1]">
+              {kickError}
+            </div>
+          )}
 
           <div className="mt-3.5 rounded-[11px] border border-dashed border-white/10 p-2.5 text-center text-xs font-semibold leading-[1.4] text-(color:--color-text-muted)">
             {hasOrder

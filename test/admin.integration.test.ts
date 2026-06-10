@@ -287,4 +287,61 @@ describe("admin integration", () => {
     expect(parts!.n).toBe(0);
     expect(row.status).toBe("lobby");
   });
+
+  it("kick removes the targeted participant from the lobby", async () => {
+    const admin = await register("admin", "password1");
+    const adminCookie = sessionCookie(admin);
+    const bob = await register("bob", "password2");
+    const bobCookie = sessionCookie(bob);
+    const bobId = ((await bob.json()) as { user: { id: number } }).user.id;
+
+    await join(adminCookie);
+    await join(bobCookie);
+
+    const res = await adminPost(`participants/${bobId}/kick`, adminCookie);
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { ok: boolean }).toEqual({ ok: true });
+
+    // bob's row is gone; admin is still a participant.
+    const bobRow = await env.DRAFT_DB.prepare(
+      "SELECT COUNT(*) AS n FROM participants WHERE user_id=?"
+    ).bind(bobId).first<{ n: number }>();
+    expect(bobRow!.n).toBe(0);
+    const all = await env.DRAFT_DB.prepare("SELECT COUNT(*) AS n FROM participants").first<{ n: number }>();
+    expect(all!.n).toBe(1);
+  });
+
+  it("kick is 403 for a non-admin", async () => {
+    const admin = await register("admin", "password1");
+    const adminId = ((await admin.json()) as { user: { id: number } }).user.id;
+    const bob = await register("bob", "password2");
+    const bobCookie = sessionCookie(bob);
+
+    const res = await adminPost(`participants/${adminId}/kick`, bobCookie);
+    expect(res.status).toBe(403);
+  });
+
+  it("kick outside the lobby → 409", async () => {
+    const admin = await register("admin", "password1");
+    const adminCookie = sessionCookie(admin);
+    const bob = await register("bob", "password2");
+    const bobId = ((await bob.json()) as { user: { id: number } }).user.id;
+
+    await join(adminCookie);
+    // Move the draft out of the lobby.
+    await env.DRAFT_DB.prepare("UPDATE draft_settings SET status='in_progress' WHERE id=1").run();
+
+    const res = await adminPost(`participants/${bobId}/kick`, adminCookie);
+    expect(res.status).toBe(409);
+  });
+
+  it("kicking yourself → 400", async () => {
+    const admin = await register("admin", "password1");
+    const adminId = ((await admin.json()) as { user: { id: number } }).user.id;
+    const adminCookie = sessionCookie(admin);
+
+    await join(adminCookie);
+    const res = await adminPost(`participants/${adminId}/kick`, adminCookie);
+    expect(res.status).toBe(400);
+  });
 });

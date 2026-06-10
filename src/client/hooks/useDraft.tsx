@@ -26,6 +26,8 @@ interface DraftContextValue {
   connected: boolean;
   connecting: boolean;
   error: string | null;
+  kicked: boolean;
+  rejoin: () => void;
   sendPick: (playerId: number) => void;
   isMyTurn: boolean;
   myPicks: Pick[];
@@ -43,8 +45,10 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [kicked, setKicked] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | undefined>(undefined);
+  const kickedRef = useRef(false);
 
   // Fetch players on mount
   useEffect(() => {
@@ -54,43 +58,42 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   // Player lookup map
   const playersById = new Map(players.map((p) => [p.id, p]));
 
-  // WebSocket connection
-  useEffect(() => {
-    function connect() {
-      setConnecting(true);
+  const connect = useCallback(() => {
+    setConnecting(true);
+    setError(null);
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setConnected(true);
+      setConnecting(false);
       setError(null);
+    };
 
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-      wsRef.current = ws;
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data) as ServerMsg;
+        handleMessage(msg);
+      } catch (e) {
+        console.error("Failed to parse WS message:", e);
+      }
+    };
 
-      ws.onopen = () => {
-        setConnected(true);
-        setConnecting(false);
-        setError(null);
-      };
+    ws.onclose = () => {
+      setConnected(false);
+      wsRef.current = null;
+      // Kicked by an admin: stay out until the user deliberately rejoins.
+      if (kickedRef.current) return;
+      // Otherwise reconnect after a short delay.
+      reconnectTimeoutRef.current = window.setTimeout(connect, 2000);
+    };
 
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data) as ServerMsg;
-          handleMessage(msg);
-        } catch (e) {
-          console.error("Failed to parse WS message:", e);
-        }
-      };
-
-      ws.onclose = () => {
-        setConnected(false);
-        wsRef.current = null;
-        // Reconnect after delay
-        reconnectTimeoutRef.current = window.setTimeout(connect, 2000);
-      };
-
-      ws.onerror = () => {
-        setError("Connection error");
-        ws.close();
-      };
-    }
+    ws.onerror = () => {
+      setError("Connection error");
+      ws.close();
+    };
 
     function handleMessage(msg: ServerMsg) {
       switch (msg.t) {
@@ -114,12 +117,28 @@ export function DraftProvider({ children }: { children: ReactNode }) {
         case "error":
           setError(msg.message);
           break;
+        case "kicked":
+          // Admin removed us from the lobby. The server closes the socket next; the
+          // kickedRef flag stops onclose from auto-reconnecting until rejoin().
+          kickedRef.current = true;
+          setKicked(true);
+          break;
         case "pong":
           // Keepalive response, ignore
           break;
       }
     }
+  }, []);
 
+  // Clear the kicked state and re-establish the connection (auto-join re-adds us).
+  const rejoin = useCallback(() => {
+    kickedRef.current = false;
+    setKicked(false);
+    connect();
+  }, [connect]);
+
+  // WebSocket connection
+  useEffect(() => {
     connect();
 
     // Keepalive ping every 30s
@@ -134,7 +153,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
       clearTimeout(reconnectTimeoutRef.current);
       wsRef.current?.close();
     };
-  }, []);
+  }, [connect]);
 
   const sendPick = useCallback((playerId: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -185,6 +204,8 @@ export function DraftProvider({ children }: { children: ReactNode }) {
         connected,
         connecting,
         error,
+        kicked,
+        rejoin,
         sendPick,
         isMyTurn,
         myPicks,

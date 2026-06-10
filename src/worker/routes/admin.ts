@@ -117,7 +117,14 @@ adminRoutes.post("/admin/users/:id/demote", requireAuth, requireAdmin, async c =
   return c.json({ ok: true });
 });
 
-// 7. POST /admin/reset-draft — clear the draft to start fresh, keeping players.
+// 7. POST /admin/participants/:id/kick — remove a participant from the lobby.
+adminRoutes.post("/admin/participants/:id/kick", requireAuth, requireAdmin, async c => {
+  const user_id = Number(c.req.param("id"));
+  if (!Number.isInteger(user_id)) return c.json({ error: "invalid user id" }, 400);
+  return relay(await callDO(c.env, "kick", getCookie(c, COOKIE) ?? "", { user_id }));
+});
+
+// 8. POST /admin/reset-draft — clear the draft to start fresh, keeping players.
 adminRoutes.post("/admin/reset-draft", requireAuth, requireAdmin, async c => {
   const db = c.env.DRAFT_DB;
   await db.batch([
