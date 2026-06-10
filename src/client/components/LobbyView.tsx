@@ -1,16 +1,7 @@
 import { useDraft } from "../hooks/useDraft";
 import { useAuth } from "../hooks/useAuth";
-import type { Position } from "../../shared/types";
-
-const POSITIONS: Position[] = ["GK", "DEF", "MID", "FWD"];
-
-// Position colors mirrored from the Claude design reference (GK amber, DEF blue, MID green, FWD orange).
-const POS_STYLE: Record<Position, { fg: string; bg: string; bd: string }> = {
-  GK: { fg: "#FBBF24", bg: "rgba(251,191,36,0.16)", bd: "rgba(251,191,36,0.45)" },
-  DEF: { fg: "#6AA8FF", bg: "rgba(59,130,246,0.16)", bd: "rgba(59,130,246,0.45)" },
-  MID: { fg: "#34D399", bg: "rgba(16,185,129,0.16)", bd: "rgba(16,185,129,0.45)" },
-  FWD: { fg: "#FB8359", bg: "rgba(244,96,46,0.18)", bd: "rgba(244,96,46,0.5)" },
-};
+import DraftSettings from "./admin/DraftSettings";
+import DraftControls from "./admin/DraftControls";
 
 // Deterministic avatar color per username, from the design's accent palette.
 const AVATAR_COLORS = ["#F59E0B", "#FF3D7F", "#6AA8FF", "#34D399", "#A78BFA", "#22D3EE", "#FB8359"];
@@ -34,7 +25,7 @@ export default function LobbyView() {
     );
   }
 
-  const { settings, participants } = state;
+  const { participants } = state;
   const isAdmin = user?.is_admin;
   const sortedParticipants = [...participants].sort((a, b) => {
     if (a.draft_order === null && b.draft_order === null) return 0;
@@ -149,151 +140,20 @@ export default function LobbyView() {
                 className="h-[7px] w-[7px] animate-pulse rounded-full"
                 style={{ background: "#22D3EE" }}
               />
-              Live · set by admin
+              {isAdmin ? "Editable · you are admin" : "Live · set by admin"}
             </span>
           </div>
           <p className="m-0 mb-[18px] text-[12.5px] font-medium leading-[1.4] text-(color:--color-text-muted)">
-            Current draft setup, kept in sync with the admin.
+            {isAdmin
+              ? "Configure the draft, then randomize the order and start."
+              : "Current draft setup, kept in sync with the admin."}
           </p>
 
-          {/* Top row settings */}
-          <div className="mb-[18px] grid grid-cols-3 gap-3.5">
-            <div className="rounded-[13px] border border-white/[0.06] bg-white/[0.02] p-3.5">
-              <div className="mb-2.5 text-[11px] font-bold text-(color:--color-text-secondary)">
-                Rounds <span className="text-(color:--color-text-muted)">(picks each)</span>
-              </div>
-              <div className="text-center text-2xl font-black tabular-nums text-(color:--color-text-primary)">
-                {settings.total_picks}
-              </div>
-            </div>
-            <div className="rounded-[13px] border border-white/[0.06] bg-white/[0.02] p-3.5">
-              <div className="mb-2.5 text-[11px] font-bold text-(color:--color-text-secondary)">
-                Pick timer
-              </div>
-              <div className="text-center text-2xl font-black tabular-nums text-(color:--color-text-primary)">
-                {settings.seconds_per_pick}s
-              </div>
-            </div>
-            <div className="rounded-[13px] border border-white/[0.06] bg-white/[0.02] p-3.5">
-              <div className="mb-2.5 text-[11px] font-bold text-(color:--color-text-secondary)">
-                Max / country
-              </div>
-              <div className="text-center text-2xl font-black tabular-nums text-(color:--color-text-primary)">
-                {settings.max_per_country}
-              </div>
-            </div>
-          </div>
+          <DraftSettings editable={!!isAdmin && state.status === "lobby"} />
 
-          {/* Position min/max grid */}
-          <div className="mb-[18px] rounded-[13px] border border-white/[0.06] bg-white/[0.02] px-4 py-1.5">
-            <div className="grid grid-cols-3 gap-2.5 border-b border-white/[0.06] pb-2.5 pt-3">
-              <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-(color:--color-text-muted)">
-                Position
-              </span>
-              <span className="text-center text-[10px] font-bold uppercase tracking-[0.1em] text-(color:--color-text-muted)">
-                Min
-              </span>
-              <span className="text-center text-[10px] font-bold uppercase tracking-[0.1em] text-(color:--color-text-muted)">
-                Max
-              </span>
-            </div>
-            {POSITIONS.map((pos) => {
-              const s = POS_STYLE[pos];
-              return (
-                <div
-                  key={pos}
-                  className="grid grid-cols-3 items-center gap-2.5 border-b border-white/[0.04] py-[9px]"
-                >
-                  <span
-                    className="justify-self-start rounded-[7px] px-2 py-[5px] text-xs font-extrabold tracking-[0.05em]"
-                    style={{ background: s.bg, color: s.fg, border: `1px solid ${s.bd}` }}
-                  >
-                    {pos}
-                  </span>
-                  <span className="text-center text-[15px] font-extrabold tabular-nums text-(color:--color-text-primary)">
-                    {settings.pos_min[pos]}
-                  </span>
-                  <span className="text-center text-[15px] font-extrabold tabular-nums text-(color:--color-text-primary)">
-                    {settings.pos_max[pos]}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Order mode */}
-          <div className="mb-[18px] grid grid-cols-1 gap-3.5">
-            <div className="rounded-[13px] border border-white/[0.06] bg-white/[0.02] p-3.5">
-              <div className="mb-2.5 text-[11px] font-bold text-(color:--color-text-secondary)">
-                Order mode
-              </div>
-              <div className="flex gap-1.5">
-                {(["snake", "linear"] as const).map((mode) => {
-                  const active = settings.order_mode === mode;
-                  return (
-                    <span
-                      key={mode}
-                      className="flex-1 rounded-[9px] py-2.5 text-center text-xs font-extrabold capitalize"
-                      style={{
-                        color: active ? "#0A0E16" : "#9AA7B8",
-                        background: active ? "#FF3D7F" : "rgba(255,255,255,0.04)",
-                        border: `1px solid ${active ? "#FF3D7F" : "rgba(255,255,255,0.08)"}`,
-                      }}
-                    >
-                      {mode === "snake" ? "↩ Snake" : "→ Linear"}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Status / waiting */}
-          {hasOrder ? (
-            <div
-              className="mb-[18px] flex items-center gap-2.5 rounded-[13px] px-4 py-3.5 text-[13px] font-bold leading-none text-[#6EE7B7]"
-              style={{
-                background: "rgba(52,211,153,0.07)",
-                border: "1px solid rgba(52,211,153,0.3)",
-              }}
-            >
-              <span>✓</span>
-              <span>Settings valid · order set · ready to start</span>
-            </div>
-          ) : (
-            <div
-              className="mb-[18px] flex items-center gap-2.5 rounded-[13px] px-4 py-3.5 text-[13px] font-bold leading-none text-(color:--color-accent-warning)"
-              style={{
-                background: "rgba(251,191,36,0.07)",
-                border: "1px solid rgba(251,191,36,0.3)",
-              }}
-            >
-              <span className="h-2 w-2 rounded-full bg-(--color-accent-warning)" />
-              <span>Waiting for the admin to randomize the order.</span>
-            </div>
-          )}
-
-          {/* Waiting / admin note */}
-          {isAdmin ? (
-            <div
-              className="flex items-center justify-center gap-2.5 rounded-[12px] px-4 py-[15px] text-center text-[13px] font-bold leading-[1.4] text-(color:--color-text-secondary)"
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.07)",
-              }}
-            >
-              Use the Admin panel to configure settings and start the draft.
-            </div>
-          ) : (
-            <div
-              className="flex items-center justify-center gap-2.5 rounded-[12px] px-4 py-[15px] text-[13px] font-bold leading-none text-(color:--color-text-secondary)"
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.07)",
-              }}
-            >
-              <span className="h-2 w-2 rounded-full bg-(--color-accent-warning)" />
-              Waiting for the admin to start the draft…
+          {isAdmin && (
+            <div className="mt-[18px] border-t border-white/[0.07] pt-[18px]">
+              <DraftControls />
             </div>
           )}
         </div>
