@@ -86,7 +86,9 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AdminRoute>
-              <AdminPage />
+              <DraftProvider>
+                <AdminPage />
+              </DraftProvider>
             </AdminRoute>
           </ProtectedRoute>
         }
