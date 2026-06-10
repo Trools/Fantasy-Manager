@@ -68,7 +68,7 @@ export default function RegisterPage() {
   const inputBorder = `1px solid ${error ? "rgba(255,90,77,0.4)" : "rgba(255,255,255,0.10)"}`;
 
   return (
-    <div className="min-h-screen flex bg-[#0A0E16] text-(color:--color-text-primary) font-sans">
+    <div className="min-h-screen flex mx-auto max-w-[1080px] bg-[#0A0E16] text-(color:--color-text-primary) font-sans">
       {/* LEFT BRAND PANEL */}
       <div
         className="relative hidden lg:flex flex-1 min-w-0 flex-col justify-between overflow-hidden p-[56px_52px]"
