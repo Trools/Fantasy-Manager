@@ -42,22 +42,27 @@ export default function LoginPage() {
     "w-full rounded-[11px] px-3.5 py-3.5 text-[15px] font-semibold leading-none text-(color:--color-text-primary) bg-white/5 outline-none placeholder:text-(color:--color-text-muted)";
 
   return (
-    <div className="min-h-screen flex mx-auto max-w-[1080px] bg-[#0A0E16] text-(color:--color-text-primary) font-sans">
-      {/* LEFT BRAND PANEL */}
+    <div className="relative min-h-screen bg-[#0A0E16] text-(color:--color-text-primary) font-sans">
+      {/* Full-bleed brand background — fills the left half of the viewport to the screen edge */}
       <div
-        className="relative hidden lg:flex flex-1 min-w-0 flex-col justify-between overflow-hidden p-[56px_52px]"
+        className="pointer-events-none absolute inset-y-0 left-0 right-1/2 hidden overflow-hidden lg:block"
         style={{
           background:
             "radial-gradient(700px 460px at 30% 20%, rgba(255,61,127,0.22), transparent 70%), linear-gradient(160deg,#16101A,#0B0A12)",
         }}
       >
         <div
-          className="pointer-events-none absolute inset-0"
+          className="absolute inset-0"
           style={{
             background:
               "repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 72px)",
           }}
         />
+      </div>
+
+      <div className="relative mx-auto flex min-h-screen max-w-[1080px]">
+        {/* LEFT BRAND PANEL (content; background is the full-bleed layer above) */}
+        <div className="relative hidden lg:flex flex-1 min-w-0 flex-col justify-between overflow-hidden p-[56px_52px]">
         <div className="relative flex items-center gap-[13px]">
           <span
             className="inline-flex h-[46px] w-[46px] items-center justify-center rounded-[13px] text-center text-[15px] font-black leading-none text-white"
@@ -221,6 +226,7 @@ export default function LoginPage() {
             Create an account
           </button>
         </div>
+      </div>
       </div>
     </div>
   );
