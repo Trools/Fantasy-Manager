@@ -7,7 +7,7 @@ import Button from "./Button";
 
 const POSITIONS: Position[] = ["GK", "DEF", "MID", "FWD"];
 
-type SortField = "name" | "country" | "position" | "number";
+type SortField = "rating" | "name" | "country" | "position" | "number";
 type SortDir = "asc" | "desc";
 
 export default function PlayerList() {
@@ -23,8 +23,8 @@ export default function PlayerList() {
   const [search, setSearch] = useState("");
   const [posFilter, setPosFilter] = useState<Position | null>(null);
   const [countryFilter, setCountryFilter] = useState<string>("");
-  const [sortField, setSortField] = useState<SortField>("name");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sortField, setSortField] = useState<SortField>("rating");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   // Get unique countries for filter dropdown
   const countries = useMemo(() => {
@@ -72,6 +72,14 @@ export default function PlayerList() {
     result = [...result].sort((a, b) => {
       let cmp = 0;
       switch (sortField) {
+        case "rating": {
+          // Unrated players always sort last, regardless of direction.
+          if (a.rating == null && b.rating == null) return 0;
+          if (a.rating == null) return 1;
+          if (b.rating == null) return -1;
+          cmp = a.rating - b.rating;
+          break;
+        }
         case "name":
           cmp = a.full_name.localeCompare(b.full_name);
           break;
@@ -184,6 +192,8 @@ export default function PlayerList() {
               text-xs font-bold text-(color:--color-text-primary)
               focus:outline-none focus:ring-2 focus:ring-(color:--color-accent-primary)/50"
           >
+            <option value="rating-desc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Ranking (best first)</option>
+            <option value="rating-asc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Ranking (worst first)</option>
             <option value="name-asc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Name A–Z</option>
             <option value="name-desc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Name Z–A</option>
             <option value="country-asc" className="bg-(color:--color-bg-elevated) text-(color:--color-text-primary)">Sort: Country A–Z</option>

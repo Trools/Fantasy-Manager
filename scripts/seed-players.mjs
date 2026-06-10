@@ -11,10 +11,10 @@ let sql = "DELETE FROM players;\n";
 
 for (let i = 0; i < players.length; i += 100) {
   const chunk = players.slice(i, i + 100);
-  sql += "INSERT INTO players (country,country_code,position,shirt_number,full_name,name_on_shirt,club,dob) VALUES\n";
+  sql += "INSERT INTO players (country,country_code,position,shirt_number,full_name,name_on_shirt,club,dob,rating) VALUES\n";
   sql += chunk
     .map(p =>
-      `(${esc(p.country)},${esc(p.country_code)},${esc(p.position)},${num(p.shirt_number)},${esc(p.full_name)},${esc(p.name_on_shirt)},${esc(p.club)},${esc(p.dob)})`
+      `(${esc(p.country)},${esc(p.country_code)},${esc(p.position)},${num(p.shirt_number)},${esc(p.full_name)},${esc(p.name_on_shirt)},${esc(p.club)},${esc(p.dob)},${num(p.rating)})`
     )
     .join(",\n") + ";\n";
 }

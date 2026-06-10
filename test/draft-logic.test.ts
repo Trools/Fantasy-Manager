@@ -84,9 +84,9 @@ describe("completion", () => {
 describe("rosterFromPicks", () => {
   it("returns only entries for the requested user, in pick order", () => {
     const playerMap = new Map<number, Player>([
-      [101, { id: 101, country: "France", country_code: "FRA", position: "GK", shirt_number: 1, full_name: "Hugo Lloris", name_on_shirt: "LLORIS", club: "Spurs", dob: "1986-12-26", active: true }],
-      [102, { id: 102, country: "Brazil", country_code: "BRA", position: "DEF", shirt_number: 3, full_name: "Marquinhos", name_on_shirt: "MARQUINHOS", club: "PSG", dob: "1994-05-14", active: true }],
-      [103, { id: 103, country: "England", country_code: "ENG", position: "MID", shirt_number: 8, full_name: "Declan Rice", name_on_shirt: "RICE", club: "Arsenal", dob: "1999-01-14", active: true }],
+      [101, { id: 101, country: "France", country_code: "FRA", position: "GK", shirt_number: 1, full_name: "Hugo Lloris", name_on_shirt: "LLORIS", club: "Spurs", dob: "1986-12-26", active: true, rating: 87 }],
+      [102, { id: 102, country: "Brazil", country_code: "BRA", position: "DEF", shirt_number: 3, full_name: "Marquinhos", name_on_shirt: "MARQUINHOS", club: "PSG", dob: "1994-05-14", active: true, rating: 86 }],
+      [103, { id: 103, country: "England", country_code: "ENG", position: "MID", shirt_number: 8, full_name: "Declan Rice", name_on_shirt: "RICE", club: "Arsenal", dob: "1999-01-14", active: true, rating: 85 }],
     ]);
 
     const picks: Pick[] = [
