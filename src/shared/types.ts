@@ -9,6 +9,7 @@ export interface Player {
   club: string | null; dob: string | null; active: boolean;
 }
 export interface PublicUser { id: number; username: string; is_admin: boolean; }
+export interface AdminUser { id: number; username: string; is_admin: boolean; }
 export interface Participant { user_id: number; username: string; draft_order: number | null; joined: boolean; }
 export interface Settings {
   total_picks: number; seconds_per_pick: number; pos_min: PosCounts; pos_max: PosCounts;

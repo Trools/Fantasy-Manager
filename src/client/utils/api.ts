@@ -1,4 +1,4 @@
-import type { MeResponse, Player, PublicUser, ErrorResponse } from "../../shared/types";
+import type { MeResponse, Player, PublicUser, ErrorResponse, Settings, AdminUser } from "../../shared/types";
 
 const API_BASE = "/api";
 
@@ -69,6 +69,45 @@ export async function changePassword(newPassword: string): Promise<void> {
 export async function getPlayers(): Promise<Player[]> {
   const data = await request<{ players: Player[] }>("/players");
   return data.players;
+}
+
+// Admin endpoints (all require an admin session; backend enforces).
+export async function updateSettings(settings: Settings): Promise<void> {
+  return request("/admin/settings", { method: "PUT", body: JSON.stringify(settings) });
+}
+export async function randomizeOrder(): Promise<void> {
+  return request("/admin/randomize", { method: "POST" });
+}
+export async function startDraft(): Promise<void> {
+  return request("/admin/start", { method: "POST" });
+}
+export async function pauseDraft(): Promise<void> {
+  return request("/admin/pause", { method: "POST" });
+}
+export async function resumeDraft(): Promise<void> {
+  return request("/admin/resume", { method: "POST" });
+}
+export async function extendTimer(seconds: number): Promise<void> {
+  return request("/admin/extend", { method: "POST", body: JSON.stringify({ seconds }) });
+}
+export async function undoPick(): Promise<void> {
+  return request("/admin/undo", { method: "POST" });
+}
+export async function resetDraft(): Promise<void> {
+  return request("/admin/reset-draft", { method: "POST" });
+}
+export async function getUsers(): Promise<AdminUser[]> {
+  const data = await request<{ users: AdminUser[] }>("/admin/users");
+  return data.users;
+}
+export async function promoteUser(id: number): Promise<void> {
+  return request(`/admin/users/${id}/promote`, { method: "POST" });
+}
+export async function demoteUser(id: number): Promise<void> {
+  return request(`/admin/users/${id}/demote`, { method: "POST" });
+}
+export async function resetUserPassword(id: number): Promise<{ temp_password: string }> {
+  return request(`/admin/users/${id}/reset-password`, { method: "POST" });
 }
 
 export { ApiError };
