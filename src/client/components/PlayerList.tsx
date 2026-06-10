@@ -32,13 +32,13 @@ export default function PlayerList() {
     return Array.from(set).sort();
   }, [availablePlayers]);
 
-  // Positions still below their minimum (used for the "FILLS" hint chip)
+  // Positions not yet filled to their exact count (used for the "FILLS" hint chip)
   const neededPositions = useMemo(() => {
     const needed = new Set<Position>();
     if (!state) return needed;
     for (const pos of POSITIONS) {
       const count = myRoster.get(pos)?.length ?? 0;
-      if (count < state.settings.pos_min[pos]) needed.add(pos);
+      if (count < state.settings.pos_count[pos]) needed.add(pos);
     }
     return needed;
   }, [state, myRoster]);

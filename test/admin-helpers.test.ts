@@ -3,10 +3,9 @@ import { canStartDraft, validateSettingsClient } from "../src/client/lib/admin-h
 import type { DraftState, Settings } from "../src/shared/types";
 
 const baseSettings: Settings = {
-  total_picks: 9,
+  total_picks: 11,
   seconds_per_pick: 60,
-  pos_min: { GK: 1, DEF: 2, MID: 2, FWD: 1 },
-  pos_max: { GK: 2, DEF: 5, MID: 5, FWD: 3 },
+  pos_count: { GK: 1, DEF: 4, MID: 4, FWD: 2 },
   max_per_country: 3,
   order_mode: "snake",
 };
@@ -72,8 +71,8 @@ describe("validateSettingsClient", () => {
       "Pick timer must be at least 5 seconds"
     );
   });
-  it("flags total_picks below the sum of minimums", () => {
-    const errs = validateSettingsClient({ ...baseSettings, total_picks: 2 });
-    expect(errs.some((e) => /sum of minimums/.test(e))).toBe(true);
+  it("flags an empty squad", () => {
+    const errs = validateSettingsClient({ ...baseSettings, pos_count: { GK: 0, DEF: 0, MID: 0, FWD: 0 } });
+    expect(errs.some((e) => /at least 1 player/.test(e))).toBe(true);
   });
 });

@@ -137,12 +137,52 @@ describe("draft-room integration", () => {
     expect(state.current_pick_no).toBeNull();
     expect(state.current_user_id).toBeNull();
     expect(state.round_no).toBeNull();
-    expect(state.settings.total_picks).toBe(12);
+    expect(state.settings.total_picks).toBe(11); // derived: 1+4+4+2 (seeded squad after 0002)
     expect(state.settings.order_mode).toBe("snake");
     expect(Array.isArray(state.participants)).toBe(true);
     expect(Array.isArray(state.picks)).toBe(true);
 
     ws!.close();
+  });
+
+  it("auto-joins the connecting user as a participant while in the lobby", async () => {
+    const uid = await insertUser("alice", false);
+    const token = await tokenFor(uid, "alice", false);
+
+    const res = await SELF.fetch(`${BASE}/ws`, {
+      headers: { Upgrade: "websocket", Cookie: `wcd_session=${token}` },
+    });
+    expect(res.status).toBe(101);
+    const ws = res.webSocket!;
+    ws.accept();
+
+    const raw = await firstMessage(ws);
+    const state = (JSON.parse(raw) as Extract<ServerMsg, { t: "state" }>).state;
+    expect(state.participants.map((p) => p.user_id)).toContain(uid);
+
+    const row = await env.DRAFT_DB.prepare("SELECT COUNT(*) AS n FROM participants WHERE user_id=?")
+      .bind(uid).first<{ n: number }>();
+    expect(row!.n).toBe(1);
+
+    ws.close();
+  });
+
+  it("does NOT auto-join when the draft is already in progress (spectator)", async () => {
+    await env.DRAFT_DB.prepare("UPDATE draft_settings SET status='in_progress', current_pick_no=1 WHERE id=1").run();
+    const uid = await insertUser("late", false);
+    const token = await tokenFor(uid, "late", false);
+
+    const res = await SELF.fetch(`${BASE}/ws`, {
+      headers: { Upgrade: "websocket", Cookie: `wcd_session=${token}` },
+    });
+    expect(res.status).toBe(101);
+    res.webSocket!.accept();
+
+    const row = await env.DRAFT_DB.prepare("SELECT COUNT(*) AS n FROM participants WHERE user_id=?")
+      .bind(uid).first<{ n: number }>();
+    expect(row!.n).toBe(0);
+
+    res.webSocket!.close();
   });
 
   describe("pick handler", () => {

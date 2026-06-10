@@ -1,4 +1,5 @@
 import type { Player, Settings, Participant, Pick, PosCounts, DraftStatus, OrderMode } from "../shared/types";
+import { sumPosCount } from "../shared/draft-logic";
 
 export interface Env {
   DRAFT_DB: D1Database;
@@ -26,10 +27,10 @@ export async function getSettingsRow(db: D1Database) {
   return db.prepare("SELECT * FROM draft_settings WHERE id = 1").first<any>();
 }
 export function parseSettings(row: any): Settings & { status: DraftStatus; current_pick_no: number | null; timer_deadline: number | null } {
+  const pos_count = JSON.parse(row.pos_count) as PosCounts;
   return {
-    total_picks: row.total_picks, seconds_per_pick: row.seconds_per_pick,
-    pos_min: JSON.parse(row.pos_min) as PosCounts, pos_max: JSON.parse(row.pos_max) as PosCounts,
-    max_per_country: row.max_per_country, order_mode: row.order_mode as OrderMode,
+    total_picks: sumPosCount(pos_count), seconds_per_pick: row.seconds_per_pick,
+    pos_count, max_per_country: row.max_per_country, order_mode: row.order_mode as OrderMode,
     status: row.status, current_pick_no: row.current_pick_no, timer_deadline: row.timer_deadline,
   };
 }

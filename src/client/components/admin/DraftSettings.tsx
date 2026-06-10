@@ -3,6 +3,7 @@ import { useDraft } from "../../hooks/useDraft";
 import * as api from "../../utils/api";
 import { ApiError } from "../../utils/api";
 import { validateSettingsClient } from "../../lib/admin-helpers";
+import { sumPosCount } from "../../../shared/draft-logic";
 import type { Settings, Position } from "../../../shared/types";
 
 const POSITIONS: Position[] = ["GK", "DEF", "MID", "FWD"];
@@ -55,8 +56,9 @@ export default function DraftSettings({ editable }: { editable: boolean }) {
     setSaved(false);
     setError(null);
   };
-  const updatePos = (key: "pos_min" | "pos_max", pos: Position, n: number) =>
-    update({ [key]: { ...form[key], [pos]: n } } as Partial<Settings>);
+  const updatePos = (pos: Position, n: number) =>
+    update({ pos_count: { ...form.pos_count, [pos]: n } });
+  const squadSize = sumPosCount(s.pos_count);
 
   async function save() {
     if (clientErrors.length) return;
@@ -76,10 +78,8 @@ export default function DraftSettings({ editable }: { editable: boolean }) {
     <div>
       <div className="mb-[18px] grid grid-cols-3 gap-3.5">
         <div className={tile}>
-          <div className={label}>Rounds</div>
-          {editable
-            ? <div className="flex justify-center"><Stepper value={s.total_picks} min={1} max={30} onChange={(n) => update({ total_picks: n })} /></div>
-            : <div className="text-center text-2xl font-black tabular-nums text-(color:--color-text-primary)">{s.total_picks}</div>}
+          <div className={label}>Squad size</div>
+          <div className="text-center text-2xl font-black tabular-nums text-(color:--color-text-primary)">{squadSize}</div>
         </div>
         <div className={tile}>
           <div className={label}>Pick timer</div>
@@ -95,25 +95,21 @@ export default function DraftSettings({ editable }: { editable: boolean }) {
         </div>
       </div>
 
-      {/* Position min/max grid */}
+      {/* Exact players-per-position grid */}
       <div className="mb-[18px] rounded-[13px] border border-white/[0.06] bg-white/[0.02] px-4 py-1.5">
-        <div className="grid grid-cols-3 gap-2.5 border-b border-white/[0.06] pb-2.5 pt-3">
+        <div className="grid grid-cols-2 gap-2.5 border-b border-white/[0.06] pb-2.5 pt-3">
           <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-(color:--color-text-muted)">Position</span>
-          <span className="text-center text-[10px] font-bold uppercase tracking-[0.1em] text-(color:--color-text-muted)">Min</span>
-          <span className="text-center text-[10px] font-bold uppercase tracking-[0.1em] text-(color:--color-text-muted)">Max</span>
+          <span className="text-center text-[10px] font-bold uppercase tracking-[0.1em] text-(color:--color-text-muted)">Players</span>
         </div>
         {POSITIONS.map((pos) => {
           const st = POS_STYLE[pos];
           return (
-            <div key={pos} className="grid grid-cols-3 items-center gap-2.5 border-b border-white/[0.04] py-[9px]">
+            <div key={pos} className="grid grid-cols-2 items-center gap-2.5 border-b border-white/[0.04] py-[9px]">
               <span className="justify-self-start rounded-[7px] px-2 py-[5px] text-xs font-extrabold tracking-[0.05em]"
                 style={{ background: st.bg, color: st.fg, border: `1px solid ${st.bd}` }}>{pos}</span>
               {editable
-                ? <div className="flex justify-center"><Stepper value={s.pos_min[pos]} min={0} max={11} onChange={(n) => updatePos("pos_min", pos, n)} /></div>
-                : <span className="text-center text-[15px] font-extrabold tabular-nums text-(color:--color-text-primary)">{s.pos_min[pos]}</span>}
-              {editable
-                ? <div className="flex justify-center"><Stepper value={s.pos_max[pos]} min={0} max={11} onChange={(n) => updatePos("pos_max", pos, n)} /></div>
-                : <span className="text-center text-[15px] font-extrabold tabular-nums text-(color:--color-text-primary)">{s.pos_max[pos]}</span>}
+                ? <div className="flex justify-center"><Stepper value={s.pos_count[pos]} min={0} max={11} onChange={(n) => updatePos(pos, n)} /></div>
+                : <span className="text-center text-[15px] font-extrabold tabular-nums text-(color:--color-text-primary)">{s.pos_count[pos]}</span>}
             </div>
           );
         })}

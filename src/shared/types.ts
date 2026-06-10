@@ -12,7 +12,11 @@ export interface PublicUser { id: number; username: string; is_admin: boolean; }
 export interface AdminUser { id: number; username: string; is_admin: boolean; }
 export interface Participant { user_id: number; username: string; draft_order: number | null; joined: boolean; }
 export interface Settings {
-  total_picks: number; seconds_per_pick: number; pos_min: PosCounts; pos_max: PosCounts;
+  /** Derived = sum of pos_count. Server keeps it in sync; clients read it for round/complete math. */
+  total_picks: number;
+  seconds_per_pick: number;
+  /** Exact number of players required per position. Squad size = sum of these. */
+  pos_count: PosCounts;
   max_per_country: number; order_mode: OrderMode;
 }
 export interface Pick {

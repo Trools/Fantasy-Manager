@@ -9,12 +9,9 @@ export function canStartDraft(state: DraftState | null): boolean {
   return ps.every((p) => p.draft_order !== null);
 }
 
-/** Client-side settings validation: shared roster rules + timer/rounds floors. Returns [] when valid. */
+/** Client-side settings validation: shared roster rules + pick-timer floor. Returns [] when valid. */
 export function validateSettingsClient(s: Settings): string[] {
   const errs = validateSettings(s);
-  if (!Number.isInteger(s.total_picks) || s.total_picks < 1) {
-    errs.push("Rounds must be a positive whole number");
-  }
   if (!Number.isInteger(s.seconds_per_pick) || s.seconds_per_pick < 5) {
     errs.push("Pick timer must be at least 5 seconds");
   }

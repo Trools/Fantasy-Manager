@@ -3,7 +3,7 @@ import { getCookie } from "hono/cookie";
 import { getSettingsRow, getUserById, type Env } from "../db";
 import { COOKIE, requireAuth, requireAdmin } from "../middleware";
 import { callDO } from "../do-client";
-import { validateSettings } from "../../shared/draft-logic";
+import { validateSettings, sumPosCount } from "../../shared/draft-logic";
 import { hashPassword } from "../../shared/crypto";
 import type { SessionClaims } from "../../shared/types";
 
@@ -23,16 +23,17 @@ adminRoutes.put("/admin/settings", requireAuth, requireAdmin, async c => {
   const row = await getSettingsRow(db);
   if (row.status !== "lobby") return c.json({ error: "can only edit settings in the lobby" }, 409);
 
-  const { total_picks, seconds_per_pick, pos_min, pos_max, max_per_country, order_mode } = await c.req.json();
-  if (!Number.isInteger(total_picks) || total_picks < 1) return c.json({ error: "total_picks must be a positive integer" }, 400);
+  const { seconds_per_pick, pos_count, max_per_country, order_mode } = await c.req.json();
   if (!Number.isInteger(seconds_per_pick) || seconds_per_pick < 5) return c.json({ error: "seconds_per_pick must be an integer of at least 5" }, 400);
-  const errs = validateSettings({ total_picks, pos_min, pos_max, max_per_country });
+  const errs = validateSettings({ pos_count, max_per_country });
   if (errs.length) return c.json({ error: errs.join("; ") }, 400);
   if (order_mode !== "snake" && order_mode !== "linear") return c.json({ error: "order_mode must be 'snake' or 'linear'" }, 400);
 
+  // total_picks is derived from the squad composition.
+  const total_picks = sumPosCount(pos_count);
   await db.prepare(
-    "UPDATE draft_settings SET total_picks=?, seconds_per_pick=?, pos_min=?, pos_max=?, max_per_country=?, order_mode=? WHERE id=1"
-  ).bind(total_picks, seconds_per_pick, JSON.stringify(pos_min), JSON.stringify(pos_max), max_per_country, order_mode).run();
+    "UPDATE draft_settings SET total_picks=?, seconds_per_pick=?, pos_count=?, max_per_country=?, order_mode=? WHERE id=1"
+  ).bind(total_picks, seconds_per_pick, JSON.stringify(pos_count), max_per_country, order_mode).run();
 
   await callDO(c.env, "refresh", getCookie(c, COOKIE) ?? "");
   return c.json({ ok: true });

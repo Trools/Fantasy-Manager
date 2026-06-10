@@ -40,7 +40,7 @@ function adminPut(path: string, cookie: string, body: unknown) {
 
 async function settingsRow() {
   return env.DRAFT_DB.prepare(
-    "SELECT total_picks, seconds_per_pick, pos_min, pos_max, max_per_country, order_mode, status, current_pick_no FROM draft_settings WHERE id=1"
+    "SELECT total_picks, seconds_per_pick, pos_count, max_per_country, order_mode, status, current_pick_no FROM draft_settings WHERE id=1"
   ).first<any>();
 }
 
@@ -59,10 +59,8 @@ async function resetMainCache(): Promise<void> {
 }
 
 const VALID_SETTINGS = {
-  total_picks: 12,
   seconds_per_pick: 90,
-  pos_min: { GK: 1, DEF: 3, MID: 2, FWD: 1 },
-  pos_max: { GK: 2, DEF: 6, MID: 6, FWD: 5 },
+  pos_count: { GK: 1, DEF: 4, MID: 4, FWD: 2 }, // squad of 11
   max_per_country: 3,
   order_mode: "snake",
 };
@@ -73,7 +71,7 @@ describe("admin integration", () => {
     await env.DRAFT_DB.prepare("DELETE FROM participants").run();
     await env.DRAFT_DB.prepare("DELETE FROM users").run();
     await env.DRAFT_DB.prepare(
-      "UPDATE draft_settings SET total_picks=12, seconds_per_pick=90, pos_min='{\"GK\":1,\"DEF\":3,\"MID\":2,\"FWD\":1}', pos_max='{\"GK\":2,\"DEF\":6,\"MID\":6,\"FWD\":5}', max_per_country=3, order_mode='snake', status='lobby', current_pick_no=NULL, timer_deadline=NULL WHERE id=1"
+      "UPDATE draft_settings SET total_picks=11, seconds_per_pick=90, pos_count='{\"GK\":1,\"DEF\":4,\"MID\":4,\"FWD\":2}', max_per_country=3, order_mode='snake', status='lobby', current_pick_no=NULL, timer_deadline=NULL WHERE id=1"
     ).run();
     await resetMainCache();
   });
@@ -82,21 +80,21 @@ describe("admin integration", () => {
     const admin = await register("admin", "password1");
     const cookie = sessionCookie(admin);
 
-    // total_picks below the sum of minimums (1+3+2+1=7).
-    const res = await adminPut("settings", cookie, { ...VALID_SETTINGS, total_picks: 3 });
+    // An empty squad (all positions zero) is invalid.
+    const res = await adminPut("settings", cookie, { ...VALID_SETTINGS, pos_count: { GK: 0, DEF: 0, MID: 0, FWD: 0 } });
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
-    expect(body.error).toContain("at least the sum of minimums");
+    expect(body.error).toContain("at least 1 player");
   });
 
-  it("PUT /admin/settings persists valid settings", async () => {
+  it("PUT /admin/settings persists valid settings and derives total_picks", async () => {
     const admin = await register("admin", "password1");
     const cookie = sessionCookie(admin);
 
     const res = await adminPut("settings", cookie, {
       ...VALID_SETTINGS,
-      total_picks: 10,
       seconds_per_pick: 60,
+      pos_count: { GK: 1, DEF: 3, MID: 3, FWD: 1 }, // squad of 8
       max_per_country: 2,
       order_mode: "linear",
     });
@@ -104,11 +102,11 @@ describe("admin integration", () => {
     expect((await res.json()) as { ok: boolean }).toEqual({ ok: true });
 
     const row = await settingsRow();
-    expect(row.total_picks).toBe(10);
+    expect(row.total_picks).toBe(8); // derived from the sum of pos_count
     expect(row.seconds_per_pick).toBe(60);
     expect(row.max_per_country).toBe(2);
     expect(row.order_mode).toBe("linear");
-    expect(JSON.parse(row.pos_min)).toEqual(VALID_SETTINGS.pos_min);
+    expect(JSON.parse(row.pos_count)).toEqual({ GK: 1, DEF: 3, MID: 3, FWD: 1 });
   });
 
   it("PUT /admin/settings is 403 for a non-admin", async () => {

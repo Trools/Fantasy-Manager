@@ -48,7 +48,26 @@ export class DraftRoom {
     const server = pair[1];
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ userId: claims.userId, username: claims.username, isAdmin: claims.isAdmin });
-    server.send(JSON.stringify({ t: "state", state: await this.buildState() } satisfies ServerMsg));
+
+    // Auto-join: entering the lobby registers you as a participant. Only while in the
+    // lobby — connecting to an in-progress/complete draft is read-only (spectator).
+    const row = await getSettingsRow(this.env.DRAFT_DB);
+    let joined = false;
+    if (row?.status === "lobby") {
+      const res = await this.env.DRAFT_DB
+        .prepare("INSERT OR IGNORE INTO participants (user_id, joined) VALUES (?, 1)")
+        .bind(claims.userId)
+        .run();
+      joined = (res.meta.changes ?? 0) > 0;
+    }
+
+    const state = await this.buildState();
+    if (joined) {
+      this.cache = undefined;
+      this.broadcast({ t: "state", state }); // reaches everyone, including this new socket
+    } else {
+      server.send(JSON.stringify({ t: "state", state } satisfies ServerMsg));
+    }
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -67,6 +86,22 @@ export class DraftRoom {
       case "refresh": {
         this.cache = undefined;
         this.playerMap = undefined;
+        // If we're back in the lobby (e.g. after a reset), make sure everyone still
+        // connected is re-registered as a participant — reset-draft wipes the table.
+        const row = await getSettingsRow(db);
+        if (row?.status === "lobby") {
+          const ids = new Set<number>();
+          for (const ws of this.ctx.getWebSockets()) {
+            const att = ws.deserializeAttachment() as { userId?: number } | null;
+            if (att?.userId) ids.add(att.userId);
+          }
+          if (ids.size)
+            await db.batch(
+              [...ids].map((id) =>
+                db.prepare("INSERT OR IGNORE INTO participants (user_id, joined) VALUES (?, 1)").bind(id)
+              )
+            );
+        }
         this.broadcast({ t: "state", state: await this.buildState() });
         return Response.json({ ok: true });
       }
@@ -254,8 +289,7 @@ export class DraftRoom {
       settings: {
         total_picks: s.total_picks,
         seconds_per_pick: s.seconds_per_pick,
-        pos_min: s.pos_min,
-        pos_max: s.pos_max,
+        pos_count: s.pos_count,
         max_per_country: s.max_per_country,
         order_mode: s.order_mode,
       },

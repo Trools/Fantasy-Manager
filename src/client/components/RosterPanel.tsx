@@ -18,27 +18,19 @@ export default function RosterPanel() {
 
   if (!state) return null;
 
-  const { pos_min, pos_max } = state.settings;
+  const { pos_count } = state.settings;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       {POSITIONS.map((pos) => {
         const players = myRoster.get(pos) ?? [];
         const count = players.length;
-        const min = pos_min[pos];
-        const max = pos_max[pos];
+        const need = pos_count[pos];
 
-        const isAtMax = count >= max;
-        const isSatisfied = count >= min;
+        const isFull = count >= need;
 
-        const cue = isAtMax
-          ? "🔒 full"
-          : isSatisfied
-          ? "✓ minimum met"
-          : `needs ${min - count}`;
-        const cueColor = isAtMax
-          ? "text-(color:--color-text-secondary)"
-          : isSatisfied
+        const cue = isFull ? "🔒 full" : `needs ${need - count}`;
+        const cueColor = isFull
           ? "text-(color:--color-success)"
           : "text-(color:--color-pos-gk)";
 
@@ -52,26 +44,21 @@ export default function RosterPanel() {
               <div className="flex items-center gap-2">
                 <PositionBadge position={pos} size="sm" />
                 <span className="text-sm font-medium text-(color:--color-text-secondary)">
-                  {count} / {min}–{max}
+                  {count} / {need}
                 </span>
               </div>
               <span className={`text-xs font-bold ${cueColor}`}>{cue}</span>
             </div>
 
-            {/* Pip meter — one segment per max slot */}
+            {/* Pip meter — one segment per required slot */}
             <div className="flex gap-1 mb-2.5">
-              {Array.from({ length: max }).map((_, i) => {
+              {Array.from({ length: need }).map((_, i) => {
                 const filled = i < count;
-                const belowMin = i < min;
                 return (
                   <span
                     key={i}
                     className={`flex-1 h-[7px] rounded-[3px] border ${
-                      filled
-                        ? PIP_FILL[pos]
-                        : belowMin
-                        ? "bg-white/5 border-white/20"
-                        : "bg-white/5 border-white/[0.08]"
+                      filled ? PIP_FILL[pos] : "bg-white/5 border-white/[0.08]"
                     }`}
                   />
                 );
@@ -87,7 +74,7 @@ export default function RosterPanel() {
               </div>
             ) : (
               <div className="text-xs font-medium text-(color:--color-pos-gk) bg-(--color-pos-gk)/[0.08] border border-dashed border-(--color-pos-gk)/30 px-2.5 py-2 rounded-lg">
-                No {pos} yet — needs {min - count}
+                No {pos} yet — needs {need - count}
               </div>
             )}
           </div>

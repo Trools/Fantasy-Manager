@@ -15,6 +15,7 @@ import type {
   Position,
   Pick,
 } from "../../shared/types";
+import { eligibility, rosterFromPicks } from "../../shared/draft-logic";
 import { useAuth } from "./useAuth";
 import * as api from "../utils/api";
 
@@ -164,76 +165,15 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     (p) => p.active && !draftedPlayerIds.has(p.id)
   );
 
-  // Eligibility check
+  // Eligibility check — delegates to the shared draft-logic rules.
   const getEligibility = useCallback(
     (player: Player): { eligible: boolean; reason?: string } => {
       if (!state || !user) return { eligible: false, reason: "Not connected" };
-
-      const settings = state.settings;
-      const myRosterCount = new Map<Position, number>();
-      const myCountryCount = new Map<string, number>();
-
-      for (const pick of state.picks) {
-        if (pick.user_id !== user.id) continue;
-        const p = playersById.get(pick.player_id);
-        if (p) {
-          myRosterCount.set(p.position, (myRosterCount.get(p.position) ?? 0) + 1);
-          myCountryCount.set(
-            p.country_code,
-            (myCountryCount.get(p.country_code) ?? 0) + 1
-          );
-        }
-      }
-
-      const posCount = myRosterCount.get(player.position) ?? 0;
-      const countryCount = myCountryCount.get(player.country_code) ?? 0;
-
-      // Check position max
-      if (posCount >= settings.pos_max[player.position]) {
-        return { eligible: false, reason: `${player.position} full` };
-      }
-
-      // Check country max
-      if (countryCount >= settings.max_per_country) {
-        return {
-          eligible: false,
-          reason: `Max ${player.country_code}`,
-        };
-      }
-
-      // Forward feasibility check
-      const currentTotal = myPicks.length;
-      const remainingAfter = settings.total_picks - currentTotal - 1;
-
-      // After adding this pick, check if we can still meet minimums
-      const afterRoster = new Map(myRosterCount);
-      afterRoster.set(
-        player.position,
-        (afterRoster.get(player.position) ?? 0) + 1
-      );
-
-      let minNeeded = 0;
-      for (const pos of ["GK", "DEF", "MID", "FWD"] as Position[]) {
-        const have = afterRoster.get(pos) ?? 0;
-        const need = settings.pos_min[pos];
-        if (have < need) {
-          minNeeded += need - have;
-        }
-      }
-
-      if (minNeeded > remainingAfter) {
-        const shortPos = (["GK", "DEF", "MID", "FWD"] as Position[]).find(
-          (pos) => (afterRoster.get(pos) ?? 0) < settings.pos_min[pos]
-        );
-        return {
-          eligible: false,
-          reason: `Would leave ${shortPos} minimum unreachable`,
-        };
-      }
-
-      return { eligible: true };
+      const roster = rosterFromPicks(state.picks, playersById, user.id);
+      const r = eligibility(player.position, player.country_code, roster, state.settings);
+      return { eligible: r.ok, reason: r.reason };
     },
-    [state, user, myPicks, playersById]
+    [state, user, playersById]
   );
 
   return (

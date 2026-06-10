@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickerForPickNo, roundForPickNo, eligibility, validateSettings, isDraftComplete, rosterFromPicks } from "../src/shared/draft-logic";
+import { pickerForPickNo, roundForPickNo, eligibility, validateSettings, isDraftComplete, rosterFromPicks, sumPosCount } from "../src/shared/draft-logic";
 import type { Player, Pick } from "../src/shared/types";
 
 describe("snake order", () => {
@@ -26,13 +26,11 @@ describe("snake order", () => {
 });
 
 const settings = {
-  total_picks: 5, seconds_per_pick: 60,
-  pos_min: { GK: 1, DEF: 2, MID: 1, FWD: 0 } as any,
-  pos_max: { GK: 1, DEF: 3, MID: 3, FWD: 3 } as any,
-  max_per_country: 2, order_mode: "snake" as const,
+  pos_count: { GK: 1, DEF: 3, MID: 3, FWD: 3 } as const,
+  max_per_country: 2,
 };
 describe("eligibility", () => {
-  it("blocks a position already at max", () => {
+  it("blocks a position already at its exact count", () => {
     const roster = [{ position: "GK", country_code: "FRA" }] as any;
     const r = eligibility("GK", "ENG", roster, settings);
     expect(r.ok).toBe(false); expect(r.reason).toBe("GK full");
@@ -42,13 +40,9 @@ describe("eligibility", () => {
     const r = eligibility("FWD", "BRA", roster, settings);
     expect(r.ok).toBe(false); expect(r.reason).toBe("Max from BRA");
   });
-  it("blocks a pick that makes remaining minimums unreachable", () => {
-    const roster = [
-      { position: "FWD", country_code: "A" }, { position: "FWD", country_code: "B" },
-      { position: "FWD", country_code: "C" }, { position: "DEF", country_code: "D" },
-    ] as any;
-    const r = eligibility("MID", "E", roster, settings);
-    expect(r.ok).toBe(false); expect(r.reason).toBe("would leave minimums unreachable");
+  it("allows filling a position up to its exact count", () => {
+    const roster = [{ position: "DEF", country_code: "A" }, { position: "DEF", country_code: "B" }] as any;
+    expect(eligibility("DEF", "C", roster, settings).ok).toBe(true); // 2 of 3 DEF, room for one more
   });
   it("allows a valid pick", () => {
     const roster = [{ position: "GK", country_code: "A" }] as any;
@@ -56,17 +50,27 @@ describe("eligibility", () => {
   });
 });
 
-describe("settings validation", () => {
-  it("rejects total_picks below sum of minimums", () => {
-    const errs = validateSettings({ total_picks: 3, pos_min: { GK:1,DEF:3,MID:1,FWD:1 }, pos_max:{GK:1,DEF:3,MID:3,FWD:3}, max_per_country:2 } as any);
-    expect(errs).toContain("total_picks must be at least the sum of minimums (6)");
+describe("sumPosCount", () => {
+  it("sums the four position counts into the squad size", () => {
+    expect(sumPosCount({ GK: 1, DEF: 4, MID: 4, FWD: 2 })).toBe(11);
   });
-  it("rejects total_picks above sum of maximums", () => {
-    const errs = validateSettings({ total_picks: 99, pos_min:{GK:0,DEF:0,MID:0,FWD:0}, pos_max:{GK:1,DEF:1,MID:1,FWD:1}, max_per_country:2 } as any);
-    expect(errs.some(e => e.includes("at most the sum of maximums"))).toBe(true);
+});
+
+describe("settings validation", () => {
+  it("rejects a negative position count", () => {
+    const errs = validateSettings({ pos_count: { GK: -1, DEF: 4, MID: 4, FWD: 2 }, max_per_country: 2 } as any);
+    expect(errs.some(e => /GK count/.test(e))).toBe(true);
+  });
+  it("rejects an empty squad", () => {
+    const errs = validateSettings({ pos_count: { GK: 0, DEF: 0, MID: 0, FWD: 0 }, max_per_country: 2 });
+    expect(errs).toContain("squad must have at least 1 player");
+  });
+  it("rejects max_per_country below 1", () => {
+    const errs = validateSettings({ pos_count: { GK: 1, DEF: 4, MID: 4, FWD: 2 }, max_per_country: 0 });
+    expect(errs).toContain("max_per_country must be at least 1");
   });
   it("accepts valid settings", () => {
-    expect(validateSettings({ total_picks: 6, pos_min:{GK:1,DEF:2,MID:1,FWD:0}, pos_max:{GK:2,DEF:4,MID:4,FWD:4}, max_per_country:2 } as any)).toEqual([]);
+    expect(validateSettings({ pos_count: { GK: 1, DEF: 4, MID: 4, FWD: 2 }, max_per_country: 3 })).toEqual([]);
   });
 });
 
@@ -96,27 +100,5 @@ describe("rosterFromPicks", () => {
     expect(roster).toHaveLength(2);
     expect(roster[0]).toEqual({ position: "GK", country_code: "FRA" });
     expect(roster[1]).toEqual({ position: "MID", country_code: "ENG" });
-  });
-});
-
-describe("validateSettings edge paths", () => {
-  it("returns error matching /GK min exceeds max/ when GK min > GK max", () => {
-    const errs = validateSettings({
-      total_picks: 6,
-      pos_min: { GK: 2, DEF: 2, MID: 1, FWD: 0 } as any,
-      pos_max: { GK: 1, DEF: 4, MID: 4, FWD: 4 } as any,
-      max_per_country: 2,
-    } as any);
-    expect(errs.some(e => /GK min exceeds max/.test(e))).toBe(true);
-  });
-
-  it("returns 'max_per_country must be at least 1' when max_per_country is 0", () => {
-    const errs = validateSettings({
-      total_picks: 6,
-      pos_min: { GK: 1, DEF: 2, MID: 1, FWD: 0 } as any,
-      pos_max: { GK: 2, DEF: 4, MID: 4, FWD: 4 } as any,
-      max_per_country: 0,
-    } as any);
-    expect(errs).toContain("max_per_country must be at least 1");
   });
 });

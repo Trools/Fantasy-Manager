@@ -57,9 +57,6 @@ export default function TopBar() {
                     </span>
                   </span>
                 )}
-                <span className="px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-(color:--color-text-secondary) text-xs font-bold uppercase tracking-wide">
-                  {state.settings.order_mode}
-                </span>
               </div>
             )}
           </div>
