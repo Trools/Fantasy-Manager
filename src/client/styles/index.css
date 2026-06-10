@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-@theme {
+/* CSS Custom Properties for use throughout the app */
+:root {
   /* Background colors - Stadium Night theme */
   --color-bg-primary: #0E1116;
   --color-bg-surface: #161B22;
@@ -27,8 +28,10 @@
   /* Border colors */
   --color-border-default: #30363D;
   --color-border-muted: #21262D;
+}
 
-  /* Font families */
+/* Tailwind v4 theme extension */
+@theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
