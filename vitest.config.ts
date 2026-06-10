@@ -22,6 +22,7 @@ export default defineConfig(async () => {
               "test/draft-logic.test.ts",
               "test/crypto.test.ts",
               "test/parse-squads.test.ts",
+              "test/admin-helpers.test.ts",
             ],
           },
         },
