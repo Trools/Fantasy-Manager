@@ -36,17 +36,17 @@ export default function DraftBoard() {
   }
 
   return (
-    <div className="overflow-auto">
+    <div className="overflow-auto rounded-[13px] border border-white/[0.07] bg-white/[0.02]">
       <table className="w-full border-collapse min-w-max">
         <thead>
           <tr>
-            <th className="sticky left-0 z-10 bg-(--color-bg-primary) px-3 py-2 text-left text-xs font-medium text-(color:--color-text-muted) uppercase">
+            <th className="sticky left-0 z-10 bg-(--color-bg-primary) px-3 py-2.5 text-left text-[11px] font-extrabold tracking-[0.12em] uppercase text-(color:--color-text-muted)">
               Round
             </th>
             {sortedParticipants.map((p) => (
               <th
                 key={p.user_id}
-                className="px-3 py-2 text-center text-sm font-medium text-(color:--color-text-secondary) border-b border-(color:--color-border-default)"
+                className="px-3 py-2.5 text-center text-[13px] font-bold text-(color:--color-text-secondary) border-b border-white/[0.06]"
               >
                 {p.username}
               </th>
@@ -59,15 +59,12 @@ export default function DraftBoard() {
             const isReversed = isSnake && round % 2 === 0;
 
             return (
-              <tr
-                key={round}
-                className={isReversed ? "bg-(--color-bg-surface)/30" : ""}
-              >
-                <td className="sticky left-0 z-10 bg-(--color-bg-primary) px-3 py-2 text-sm text-(color:--color-text-muted) border-b border-(color:--color-border-muted)">
+              <tr key={round} className={isReversed ? "bg-white/[0.015]" : ""}>
+                <td className="sticky left-0 z-10 bg-(--color-bg-primary) px-3 py-2 text-sm font-medium text-(color:--color-text-muted) border-b border-white/[0.05]">
                   <div className="flex items-center gap-1">
                     {round}
                     {isSnake && (
-                      <span className="text-xs text-(color:--color-text-muted)">
+                      <span className="text-xs text-(color:--color-info)">
                         {isReversed ? "←" : "→"}
                       </span>
                     )}
@@ -83,8 +80,8 @@ export default function DraftBoard() {
                     <td
                       key={colIdx}
                       className={`
-                        px-2 py-1.5 text-center border-b border-(color:--color-border-muted)
-                        ${isCurrent ? "bg-(--color-accent-primary)/20 ring-2 ring-(color:--color-accent-primary) ring-inset" : ""}
+                        px-2 py-1.5 text-center border-b border-white/[0.05]
+                        ${isCurrent ? "bg-(--color-accent-primary)/15 ring-2 ring-(color:--color-accent-primary)/60 ring-inset" : ""}
                       `}
                     >
                       {pick ? (

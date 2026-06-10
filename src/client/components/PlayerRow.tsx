@@ -20,19 +20,19 @@ export default function PlayerRow({
   showClub = true,
 }: PlayerRowProps) {
   const densityClasses = {
-    comfortable: "py-3 px-4",
-    compact: "py-2 px-3",
-    inline: "py-1 px-2",
+    comfortable: "gap-3 px-3.5 py-3 rounded-[13px]",
+    compact: "gap-2.5 px-2.5 py-2.5 rounded-[10px]",
+    inline: "gap-2 px-2 py-1 rounded-lg",
   }[density];
 
   return (
     <div
       className={`
-        flex items-center gap-3 rounded-lg transition-colors
+        flex items-center border transition-colors
         ${densityClasses}
         ${disabled
-          ? "opacity-50 bg-transparent"
-          : "bg-(--color-bg-surface) hover:bg-(--color-bg-hover)"
+          ? "bg-white/[0.012] border-white/5 opacity-50 grayscale-[0.55]"
+          : "bg-white/[0.028] border-white/[0.07] hover:bg-white/5"
         }
       `}
     >
@@ -51,36 +51,31 @@ export default function PlayerRow({
 
       {/* Player Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span
-            className={`
-              font-medium truncate
-              ${density === "inline" ? "text-sm" : "text-base"}
-              ${disabled ? "text-(color:--color-text-muted)" : "text-(color:--color-text-primary)"}
-            `}
-          >
-            {player.full_name}
-          </span>
-          {player.shirt_number && density !== "inline" && (
-            <span className="text-xs text-(color:--color-text-muted)">
-              #{player.shirt_number}
-            </span>
-          )}
+        <div
+          className={`
+            font-bold truncate text-(color:--color-text-primary)
+            ${density === "inline" ? "text-sm" : "text-base leading-tight"}
+          `}
+        >
+          {player.full_name}
         </div>
         {showClub && player.club && density !== "inline" && (
-          <div className="text-sm text-(color:--color-text-secondary) truncate">
+          <div className="text-[12.5px] leading-tight text-(color:--color-text-secondary) truncate mt-0.5">
             {player.club}
-          </div>
-        )}
-        {disabled && disabledReason && (
-          <div className="text-xs text-(color:--color-accent-urgent) mt-0.5">
-            {disabledReason}
+            {player.shirt_number ? ` · #${player.shirt_number}` : ""}
           </div>
         )}
       </div>
 
+      {/* Eligibility reason chip (ineligible players) */}
+      {disabled && disabledReason && (
+        <span className="flex-none whitespace-nowrap text-xs font-bold text-(color:--color-text-secondary) bg-white/5 border border-white/10 px-2.5 py-2 rounded-[9px]">
+          {disabledReason}
+        </span>
+      )}
+
       {/* Action slot */}
-      {action && <div className="flex-shrink-0">{action}</div>}
+      {action && <div className="flex-none">{action}</div>}
     </div>
   );
 }

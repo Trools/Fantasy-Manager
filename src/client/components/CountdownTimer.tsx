@@ -47,24 +47,30 @@ export default function CountdownTimer({
   const display = `${minutes}:${seconds.toString().padStart(2, "0")}`;
 
   const stateStyles: Record<TimerState, string> = {
-    normal: "text-(color:--color-text-primary)",
-    urgent: "text-(color:--color-accent-urgent) animate-pulse",
-    expired: "text-(color:--color-text-muted)",
+    normal: "font-extrabold text-(color:--color-text-primary)",
+    urgent: "font-black text-(color:--color-accent-urgent) animate-pulse",
+    expired: "font-black text-(color:--color-text-muted)",
   };
 
   return (
     <div className="flex flex-col items-center">
       <span
         className={`
-          font-mono font-bold text-4xl tabular-nums tracking-tight
+          font-sans tabular-nums leading-none tracking-[-0.02em]
+          ${state === "expired" ? "text-3xl" : "text-5xl"}
           ${stateStyles[state]}
         `}
+        style={
+          state === "urgent"
+            ? { textShadow: "0 0 20px rgba(255,90,77,0.5)" }
+            : undefined
+        }
       >
         {state === "expired" ? "TIME!" : display}
       </span>
       {state === "urgent" && remaining > 0 && (
-        <span className="text-xs text-(color:--color-accent-urgent) mt-1">
-          {remaining} seconds left
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-(color:--color-accent-urgent) mt-1.5">
+          {remaining}s left
         </span>
       )}
     </div>

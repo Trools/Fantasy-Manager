@@ -1,10 +1,11 @@
 import type { Position } from "../../shared/types";
 
+// Position colors from the Claude design system (GK amber, DEF blue, MID green, FWD orange)
 const POSITION_COLORS: Record<Position, string> = {
-  GK: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  DEF: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  MID: "bg-green-500/20 text-green-400 border-green-500/30",
-  FWD: "bg-red-500/20 text-red-400 border-red-500/30",
+  GK: "bg-(--color-pos-gk)/15 text-(color:--color-pos-gk) border-(color:--color-pos-gk)/45",
+  DEF: "bg-(--color-pos-def)/15 text-(color:--color-pos-def) border-(color:--color-pos-def)/45",
+  MID: "bg-(--color-pos-mid)/15 text-(color:--color-pos-mid) border-(color:--color-pos-mid)/45",
+  FWD: "bg-(--color-pos-fwd)/20 text-(color:--color-pos-fwd) border-(color:--color-pos-fwd)/50",
 };
 
 interface PositionBadgeProps {

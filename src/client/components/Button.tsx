@@ -11,9 +11,10 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary: `
-    bg-(--color-accent-primary) text-gray-950 font-semibold
+    bg-(--color-accent-primary) text-(color:--color-bg-primary) font-extrabold uppercase tracking-wide
+    border-b-[3px] border-(color:--color-accent-hover)
     hover:bg-(--color-accent-hover) active:bg-(--color-accent-hover)
-    disabled:bg-(--color-bg-elevated) disabled:text-(color:--color-text-muted)
+    disabled:bg-(--color-bg-elevated) disabled:text-(color:--color-text-muted) disabled:border-(color:--color-border-muted)
   `,
   secondary: `
     bg-(--color-bg-elevated) text-(color:--color-text-primary) border border-(color:--color-border-default)
