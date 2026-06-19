@@ -4,7 +4,7 @@ import { getSettingsRow, getUserById, type Env } from "../db";
 import { COOKIE, requireAuth, requireAdmin } from "../middleware";
 import { callDO } from "../do-client";
 import { validateSettings, sumPosCount } from "../../shared/draft-logic";
-import { hashPassword } from "../../shared/crypto";
+import { hashPassword, generateTempPassword } from "../../shared/crypto";
 import type { SessionClaims } from "../../shared/types";
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: { claims?: SessionClaims } }>();
@@ -64,7 +64,12 @@ adminRoutes.post("/admin/undo", requireAuth, requireAdmin, async c =>
 
 adminRoutes.post("/admin/pick-on-behalf", requireAuth, requireAdmin, async c => {
   const body = await c.req.json().catch(() => ({}));
-  return relay(await callDO(c.env, "pick-on-behalf", getCookie(c, COOKIE) ?? "", { player_id: Number(body.player_id) }));
+  // `override` relaxes the per-country cap so an admin can break a draft that has
+  // deadlocked behind max_per_country (the position-count limit is still enforced).
+  return relay(await callDO(c.env, "pick-on-behalf", getCookie(c, COOKIE) ?? "", {
+    player_id: Number(body.player_id),
+    override: body.override === true,
+  }));
 });
 
 // 3. GET /admin/users
@@ -81,8 +86,9 @@ adminRoutes.post("/admin/users/:id/reset-password", requireAuth, requireAdmin, a
   const id = Number(c.req.param("id"));
   if (!(await getUserById(db, id))) return c.json({ error: "user not found" }, 404);
 
-  const row = await getSettingsRow(db);
-  const temp_password: string = row.temp_password;
+  // A unique random one-time password per reset — never a shared, plaintext-stored
+  // constant. Returned once to the admin; only its hash is persisted. (Review M14.)
+  const temp_password = generateTempPassword();
   const { hash, salt } = await hashPassword(temp_password);
   await db.prepare(
     "UPDATE users SET password_hash=?, password_salt=?, must_change_password=1, token_version=token_version+1 WHERE id=?"
@@ -130,8 +136,10 @@ adminRoutes.post("/admin/reset-draft", requireAuth, requireAdmin, async c => {
   await db.batch([
     db.prepare("DELETE FROM picks"),
     db.prepare("DELETE FROM participants"),
+    db.prepare("DELETE FROM kicked_users"),
     db.prepare("UPDATE draft_settings SET status='lobby', current_pick_no=NULL, timer_deadline=NULL WHERE id=1"),
   ]);
+  // refresh's lobby branch re-registers connected sockets and clears the alarm.
   await callDO(c.env, "refresh", getCookie(c, COOKIE) ?? "");
   return c.json({ ok: true });
 });

@@ -5,12 +5,11 @@ import type { Env } from "./db";
  * the DO can authenticate (and, for non-`refresh` commands, authorize) the call.
  */
 export function callDO(env: Env, cmd: string, token: string, body?: unknown): Promise<Response> {
-  const u = new URL(`https://do/cmd/${cmd}`);
-  u.searchParams.set("token", token);
   const id = env.DRAFT_ROOM.idFromName("main");
-  return env.DRAFT_ROOM.get(id).fetch(new Request(u.toString(), {
+  // Pass the token via an internal header so it never appears in the DO URL. (M13.)
+  return env.DRAFT_ROOM.get(id).fetch(`https://do/cmd/${cmd}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "X-Session-Token": token },
     body: body !== undefined ? JSON.stringify(body) : undefined,
-  }));
+  });
 }

@@ -30,12 +30,17 @@ export interface DraftState {
   status: DraftStatus; settings: Settings; participants: Participant[];
   picks: Pick[]; current_pick_no: number | null; current_user_id: number | null;
   timer_deadline: number | null; round_no: number | null;
+  /** Server epoch ms at the moment this snapshot was produced. Clients diff it
+   *  against their own clock to render the countdown without skew. */
+  server_now: number;
 }
 
 /** Session claims embedded in the signed cookie. */
 export interface SessionClaims {
   userId: number; username: string; isAdmin: boolean;
   mustChangePwd: boolean; tokenVersion: number; iat: number;
+  /** Epoch ms after which the token is rejected. Optional for back-compat. */
+  exp?: number;
 }
 
 /** ---- WebSocket protocol ---- */

@@ -1,39 +1,53 @@
+import { useMemo, memo } from "react";
 import { useDraft } from "../hooks/useDraft";
+import type { Participant, Pick } from "../../shared/types";
 import CountryFlag from "./CountryFlag";
 import PositionBadge from "./PositionBadge";
+
+type Cell = { participant: Participant; pick: Pick | null };
 
 export default function DraftBoard() {
   const { state, playersById } = useDraft();
 
+  const sortedParticipants = useMemo(
+    () =>
+      (state?.participants ?? [])
+        .filter((p) => p.draft_order !== null)
+        .sort((a, b) => (a.draft_order ?? 0) - (b.draft_order ?? 0)),
+    [state?.participants]
+  );
+
+  // Index picks by "round:user" so each board cell is an O(1) lookup instead of a
+  // full picks scan (was O(rounds × participants × picks) per render). (Review O4.)
+  const pickByCell = useMemo(() => {
+    const m = new Map<string, Pick>();
+    for (const p of state?.picks ?? []) m.set(`${p.round_no}:${p.user_id}`, p);
+    return m;
+  }, [state?.picks]);
+
+  const isSnake = state?.settings.order_mode === "snake";
+  const totalRounds = state?.settings.total_picks ?? 0;
+
+  const board = useMemo(() => {
+    const rows: Cell[][] = [];
+    for (let round = 1; round <= totalRounds; round++) {
+      const isReversed = isSnake && round % 2 === 0;
+      const ordered = isReversed ? [...sortedParticipants].reverse() : sortedParticipants;
+      rows.push(
+        ordered.map((participant) => ({
+          participant,
+          pick: pickByCell.get(`${round}:${participant.user_id}`) ?? null,
+        }))
+      );
+    }
+    return rows;
+  }, [totalRounds, isSnake, sortedParticipants, pickByCell]);
+
   if (!state) return null;
 
-  const { settings, participants, picks } = state;
-  const totalRounds = settings.total_picks;
-  const isSnake = settings.order_mode === "snake";
-
-  // Sort participants by draft order
-  const sortedParticipants = [...participants]
-    .filter((p) => p.draft_order !== null)
-    .sort((a, b) => (a.draft_order ?? 0) - (b.draft_order ?? 0));
-
-  // Build the board: rounds × participants
-  const board: (typeof picks[0] | null)[][] = [];
-  for (let round = 1; round <= totalRounds; round++) {
-    const row: (typeof picks[0] | null)[] = [];
-    const isReversed = isSnake && round % 2 === 0;
-    const orderedParticipants = isReversed
-      ? [...sortedParticipants].reverse()
-      : sortedParticipants;
-
-    for (const participant of orderedParticipants) {
-      const pick = picks.find(
-        (p) => p.round_no === round && p.user_id === participant.user_id
-      );
-      row.push(pick ?? null);
-    }
-
-    board.push(row);
-  }
+  // Only highlight the on-the-clock cell while the draft is actively running, so
+  // the ring doesn't keep glowing during a pause. (Review: board-highlight-while-paused.)
+  const liveRound = state.status === "in_progress" ? state.round_no : null;
 
   return (
     <div className="overflow-auto rounded-[13px] border border-white/[0.07] bg-white/[0.02]">
@@ -57,6 +71,8 @@ export default function DraftBoard() {
           {board.map((row, roundIdx) => {
             const round = roundIdx + 1;
             const isReversed = isSnake && round % 2 === 0;
+            const currentCol =
+              liveRound === round ? row.findIndex((c) => c.pick === null) : -1;
 
             return (
               <tr key={round} className={isReversed ? "bg-white/[0.015]" : ""}>
@@ -70,22 +86,18 @@ export default function DraftBoard() {
                     )}
                   </div>
                 </td>
-                {row.map((pick, colIdx) => {
-                  const isCurrent =
-                    state.round_no === round &&
-                    pick === null &&
-                    colIdx === row.findIndex((p) => p === null);
-
+                {row.map((cell, colIdx) => {
+                  const isCurrent = colIdx === currentCol;
                   return (
                     <td
-                      key={colIdx}
+                      key={cell.participant.user_id}
                       className={`
                         px-2 py-1.5 text-center border-b border-white/[0.05]
                         ${isCurrent ? "bg-(--color-accent-primary)/15 ring-2 ring-(color:--color-accent-primary)/60 ring-inset" : ""}
                       `}
                     >
-                      {pick ? (
-                        <BoardCell pick={pick} playersById={playersById} />
+                      {cell.pick ? (
+                        <BoardCell playerId={cell.pick.player_id} playersById={playersById} />
                       ) : (
                         <span className="text-(color:--color-text-muted)">—</span>
                       )}
@@ -101,14 +113,14 @@ export default function DraftBoard() {
   );
 }
 
-function BoardCell({
-  pick,
+const BoardCell = memo(function BoardCell({
+  playerId,
   playersById,
 }: {
-  pick: { player_id: number };
+  playerId: number;
   playersById: Map<number, { country_code: string; position: string; full_name: string }>;
 }) {
-  const player = playersById.get(pick.player_id);
+  const player = playersById.get(playerId);
   if (!player) return <span className="text-(color:--color-text-muted)">?</span>;
 
   return (
@@ -120,4 +132,4 @@ function BoardCell({
       </span>
     </div>
   );
-}
+});

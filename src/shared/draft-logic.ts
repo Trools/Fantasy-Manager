@@ -23,23 +23,35 @@ export function pickerForPickNo(pickNo: number, order: number[], mode: OrderMode
 export interface RosterEntry { position: Position; country_code: string; }
 export interface EligResult { ok: boolean; reason?: string; }
 
+/**
+ * `ignoreCountryCap` is the admin deadlock-breaker: when a manager's remaining
+ * required positions are all stranded behind `max_per_country`, an admin can
+ * force a pick that relaxes ONLY the country cap. The position-count limit is
+ * always enforced so a forced pick can never produce an oversized squad.
+ */
 export function eligibility(
   pos: Position, countryCode: string, roster: RosterEntry[],
-  s: { pos_count: PosCounts; max_per_country: number }
+  s: { pos_count: PosCounts; max_per_country: number },
+  opts?: { ignoreCountryCap?: boolean }
 ): EligResult {
   const counts: PosCounts = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
   let fromCountry = 0;
   for (const e of roster) { counts[e.position]++; if (e.country_code === countryCode) fromCountry++; }
   if (counts[pos] >= s.pos_count[pos]) return { ok: false, reason: `${pos} full` };
-  if (fromCountry >= s.max_per_country) return { ok: false, reason: `Max from ${countryCode}` };
+  if (!opts?.ignoreCountryCap && fromCountry >= s.max_per_country) return { ok: false, reason: `Max from ${countryCode}` };
   return { ok: true };
 }
 
 export function rosterFromPicks(picks: Pick[], players: Map<number, Player>, userId: number): RosterEntry[] {
-  return picks.filter(p => p.user_id === userId).map(p => {
-    const pl = players.get(p.player_id)!;
-    return { position: pl.position, country_code: pl.country_code };
-  });
+  const roster: RosterEntry[] = [];
+  for (const p of picks) {
+    if (p.user_id !== userId) continue;
+    // Tolerate a pick whose player row is missing (e.g. after a destructive
+    // re-seed reassigned ids) rather than throwing and crashing the room.
+    const pl = players.get(p.player_id);
+    if (pl) roster.push({ position: pl.position, country_code: pl.country_code });
+  }
+  return roster;
 }
 
 export function validateSettings(s: { pos_count: PosCounts; max_per_country: number }): string[] {
@@ -55,4 +67,21 @@ export function validateSettings(s: { pos_count: PosCounts; max_per_country: num
 
 export function isDraftComplete(pickCount: number, participantIds: number[], totalPicks: number): boolean {
   return pickCount >= participantIds.length * totalPicks;
+}
+
+/**
+ * Positions whose total demand (managers × required-per-squad) exceeds the
+ * available active pool. A non-empty result means the draft is mathematically
+ * impossible to complete and must be rejected at `start` rather than allowed to
+ * deadlock mid-game. (See review C1/H5.)
+ */
+export function infeasiblePositions(
+  posCount: PosCounts, managerCount: number, pool: PosCounts
+): { position: Position; need: number; have: number }[] {
+  const out: { position: Position; need: number; have: number }[] = [];
+  for (const p of ALL_POSITIONS) {
+    const need = posCount[p] * managerCount;
+    if (need > pool[p]) out.push({ position: p, need, have: pool[p] });
+  }
+  return out;
 }

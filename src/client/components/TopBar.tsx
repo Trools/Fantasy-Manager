@@ -6,7 +6,7 @@ import Button from "./Button";
 
 export default function TopBar() {
   const { user, logout } = useAuth();
-  const { state, isMyTurn, connected } = useDraft();
+  const { state, isMyTurn, connected, serverOffset } = useDraft();
 
   const currentPicker = state?.participants.find(
     (p) => p.user_id === state.current_user_id
@@ -87,7 +87,11 @@ export default function TopBar() {
                   </span>
                 )}
               </div>
-              <CountdownTimer deadline={state?.timer_deadline ?? null} />
+              <CountdownTimer
+                deadline={state?.timer_deadline ?? null}
+                status={state?.status}
+                offsetMs={serverOffset}
+              />
             </div>
           )}
 

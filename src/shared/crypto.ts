@@ -34,6 +34,23 @@ export async function verifyPassword(pw: string, hash: string, salt: string): Pr
   return diff === 0;
 }
 
+// A fixed salt used only to burn the same PBKDF2 cost on the no-such-user login
+// branch, so response timing doesn't reveal whether a username exists. (Review M15.)
+const DUMMY_SALT = new Uint8Array(16);
+export async function dummyVerify(pw: string): Promise<void> {
+  await pbkdf2(pw, DUMMY_SALT);
+}
+
+// Unambiguous alphabet (no 0/O/1/I/l) for a human-shareable one-time password.
+const TEMP_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+/** A fresh, unique temporary password (admin password-reset). (Review M14.) */
+export function generateTempPassword(length = 10): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let out = "";
+  for (let i = 0; i < length; i++) out += TEMP_ALPHABET[bytes[i]! % TEMP_ALPHABET.length];
+  return out;
+}
+
 async function hmac(data: string, secret: string): Promise<string> {
   const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return b64u(await crypto.subtle.sign("HMAC", key, enc.encode(data)));
@@ -53,7 +70,10 @@ export async function verifySession(token: string, secret: string): Promise<Sess
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ sig.charCodeAt(i);
   if (diff !== 0) return null;
   try {
-    return JSON.parse(new TextDecoder().decode(unb64u(body))) as SessionClaims;
+    const claims = JSON.parse(new TextDecoder().decode(unb64u(body))) as SessionClaims;
+    // Reject an expired token (signature alone is not enough). (Review M12.)
+    if (claims.exp != null && Date.now() > claims.exp) return null;
+    return claims;
   } catch {
     return null;
   }

@@ -20,6 +20,7 @@ function stateWith(partial: Partial<DraftState>): DraftState {
     current_user_id: null,
     timer_deadline: null,
     round_no: null,
+    server_now: 0,
     ...partial,
   };
 }

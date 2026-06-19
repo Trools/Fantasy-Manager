@@ -93,6 +93,17 @@ export async function extendTimer(seconds: number): Promise<void> {
 export async function undoPick(): Promise<void> {
   return request("/admin/undo", { method: "POST" });
 }
+/**
+ * Admin records the on-the-clock pick (timeout resolution). `override` relaxes the
+ * per-country cap to break a draft deadlocked behind max_per_country — the
+ * position-count limit is still enforced. (Review H6.)
+ */
+export async function pickOnBehalf(playerId: number, override = false): Promise<void> {
+  return request("/admin/pick-on-behalf", {
+    method: "POST",
+    body: JSON.stringify({ player_id: playerId, override }),
+  });
+}
 export async function resetDraft(): Promise<void> {
   return request("/admin/reset-draft", { method: "POST" });
 }

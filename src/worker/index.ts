@@ -9,10 +9,11 @@ export default {
       const cookie = req.headers.get("Cookie") ?? "";
       const m = cookie.match(/(?:^|;\s*)wcd_session=([^;]+)/);
       const token = m?.[1] ?? "";
-      const u = new URL(req.url);
-      u.searchParams.set("token", token);
+      // Forward the token in an internal header rather than the URL. (Review M13.)
+      const fwd = new Request(req);
+      fwd.headers.set("X-Session-Token", token);
       const id = env.DRAFT_ROOM.idFromName("main");
-      return env.DRAFT_ROOM.get(id).fetch(new Request(u, req));
+      return env.DRAFT_ROOM.get(id).fetch(fwd);
     }
     if (url.pathname.startsWith("/api/")) return app.fetch(req, env, ctx);
     return env.ASSETS.fetch(req); // SPA static assets
