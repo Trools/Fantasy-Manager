@@ -1,20 +1,24 @@
 import { Hono } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
-import { hashPassword, verifyPassword, signSession } from "../../shared/crypto";
+import { hashPassword, verifyPassword, signSession, dummyVerify } from "../../shared/crypto";
 import { getUserByUsername, getUserById, type Env } from "../db";
 import { COOKIE, requireAuth } from "../middleware";
 import type { SessionClaims } from "../../shared/types";
 
 export const authRoutes = new Hono<{ Bindings: Env; Variables: { claims?: SessionClaims } }>();
 
+const SESSION_TTL_SEC = 7 * 24 * 60 * 60; // 7 days
+
 function issue(_c: unknown, u: { id: number; username: string; is_admin: number; must_change_password: number; token_version: number }): SessionClaims {
+  const now = Date.now();
   return {
     userId: u.id,
     username: u.username,
     isAdmin: !!u.is_admin,
     mustChangePwd: !!u.must_change_password,
     tokenVersion: u.token_version,
-    iat: Date.now(),
+    iat: now,
+    exp: now + SESSION_TTL_SEC * 1000,
   };
 }
 
@@ -29,17 +33,23 @@ authRoutes.post("/register", async c => {
     .bind(username, hash, salt, Date.now()).run();
   const u = await getUserById(c.env.DRAFT_DB, res.meta.last_row_id as number);
   const claims = issue(c, u!);
-  setCookie(c, COOKIE, await signSession(claims, c.env.SESSION_SECRET), { httpOnly: true, sameSite: "Lax", path: "/", secure: true });
+  setCookie(c, COOKIE, await signSession(claims, c.env.SESSION_SECRET), { httpOnly: true, sameSite: "Lax", path: "/", secure: true, maxAge: SESSION_TTL_SEC });
   return c.json({ user: { id: u!.id, username: u!.username, is_admin: !!u!.is_admin }, must_change_password: false });
 });
 
 authRoutes.post("/login", async c => {
   const { username, password } = await c.req.json();
   const u = await getUserByUsername(c.env.DRAFT_DB, username);
-  if (!u || !(await verifyPassword(password, u.password_hash, u.password_salt)))
+  if (!u) {
+    // Burn the same PBKDF2 cost so timing can't distinguish a missing username
+    // from a wrong password. (Review M15.)
+    await dummyVerify(String(password ?? ""));
+    return c.json({ error: "invalid credentials" }, 401);
+  }
+  if (!(await verifyPassword(password, u.password_hash, u.password_salt)))
     return c.json({ error: "invalid credentials" }, 401);
   const claims = issue(c, u);
-  setCookie(c, COOKIE, await signSession(claims, c.env.SESSION_SECRET), { httpOnly: true, sameSite: "Lax", path: "/", secure: true });
+  setCookie(c, COOKIE, await signSession(claims, c.env.SESSION_SECRET), { httpOnly: true, sameSite: "Lax", path: "/", secure: true, maxAge: SESSION_TTL_SEC });
   return c.json({ user: { id: u.id, username: u.username, is_admin: !!u.is_admin }, must_change_password: !!u.must_change_password });
 });
 
@@ -70,6 +80,6 @@ authRoutes.post("/change-password", requireAuth, async c => {
     .bind(hash, salt, cl.userId).run();
   const u = await getUserById(c.env.DRAFT_DB, cl.userId);
   const claims = issue(c, u!);
-  setCookie(c, COOKIE, await signSession(claims, c.env.SESSION_SECRET), { httpOnly: true, sameSite: "Lax", path: "/", secure: true });
+  setCookie(c, COOKIE, await signSession(claims, c.env.SESSION_SECRET), { httpOnly: true, sameSite: "Lax", path: "/", secure: true, maxAge: SESSION_TTL_SEC });
   return c.json({ ok: true });
 });

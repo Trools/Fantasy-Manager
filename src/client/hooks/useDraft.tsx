@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   useRef,
   type ReactNode,
 } from "react";
@@ -15,7 +16,7 @@ import type {
   Position,
   Pick,
 } from "../../shared/types";
-import { eligibility, rosterFromPicks } from "../../shared/draft-logic";
+import { eligibility, rosterFromPicks, type RosterEntry } from "../../shared/draft-logic";
 import { useAuth } from "./useAuth";
 import * as api from "../utils/api";
 
@@ -26,6 +27,12 @@ interface DraftContextValue {
   connected: boolean;
   connecting: boolean;
   error: string | null;
+  /** Increments on every server error, even a repeat of the same message — lets
+   *  consumers reliably react to a rejection (a plain `error` dep would not
+   *  re-fire on an identical string). */
+  errorNonce: number;
+  /** Estimated (serverClock − clientClock) in ms, for skew-free countdowns. */
+  serverOffset: number;
   kicked: boolean;
   rejoin: () => void;
   sendPick: (playerId: number) => void;
@@ -38,6 +45,8 @@ interface DraftContextValue {
 
 const DraftContext = createContext<DraftContextValue | null>(null);
 
+const MAX_RECONNECT_DELAY = 30_000;
+
 export function DraftProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [state, setState] = useState<DraftState | null>(null);
@@ -45,9 +54,12 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorNonce, setErrorNonce] = useState(0);
+  const [serverOffset, setServerOffset] = useState(0);
   const [kicked, setKicked] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | undefined>(undefined);
+  const reconnectAttemptsRef = useRef(0);
   const kickedRef = useRef(false);
 
   // Fetch players on mount
@@ -55,8 +67,12 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     api.getPlayers().then(setPlayers).catch(console.error);
   }, []);
 
-  // Player lookup map
-  const playersById = new Map(players.map((p) => [p.id, p]));
+  // Player lookup map — memoized so a pick broadcast doesn't rebuild a ~1200-entry
+  // Map and invalidate every downstream memo. (Review O1.)
+  const playersById = useMemo(
+    () => new Map(players.map((p) => [p.id, p])),
+    [players]
+  );
 
   const connect = useCallback(() => {
     setConnecting(true);
@@ -67,6 +83,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     wsRef.current = ws;
 
     ws.onopen = () => {
+      reconnectAttemptsRef.current = 0;
       setConnected(true);
       setConnecting(false);
       setError(null);
@@ -82,16 +99,22 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     };
 
     ws.onclose = () => {
-      setConnected(false);
+      // Ignore a stale socket's close (StrictMode remount, or rejoin() replacing
+      // the socket): only the CURRENT socket drives reconnect/state. (Review M9.)
+      if (wsRef.current !== ws) return;
       wsRef.current = null;
+      setConnected(false);
       // Kicked by an admin: stay out until the user deliberately rejoins.
       if (kickedRef.current) return;
-      // Otherwise reconnect after a short delay.
-      reconnectTimeoutRef.current = window.setTimeout(connect, 2000);
+      // Exponential backoff with jitter, capped — no more flat 2s polling. (M10.)
+      const attempt = reconnectAttemptsRef.current++;
+      const delay = Math.min(MAX_RECONNECT_DELAY, 1000 * 2 ** attempt) + Math.floor(Math.random() * 500);
+      if (attempt >= 4) setError("Lost connection — still trying to reconnect…");
+      reconnectTimeoutRef.current = window.setTimeout(connect, delay);
     };
 
     ws.onerror = () => {
-      setError("Connection error");
+      // Let onclose own the reconnect/backoff; just tear this socket down.
       ws.close();
     };
 
@@ -99,15 +122,20 @@ export function DraftProvider({ children }: { children: ReactNode }) {
       switch (msg.t) {
         case "state":
           setState(msg.state);
+          // Re-estimate clock skew, but only commit a meaningfully different value
+          // so the CountdownTimer's interval doesn't restart on every snapshot.
+          setServerOffset((prev) => {
+            const next = msg.state.server_now - Date.now();
+            return Math.abs(next - prev) > 1000 ? next : prev;
+          });
+          // A fresh authoritative snapshot supersedes any transient pick error.
+          setError(null);
           break;
         case "pick_made":
-          // Update players list to remove picked player
-          setPlayers((prev) =>
-            prev.map((p) =>
-              p.id === msg.player.id ? { ...p, active: false } : p
-            )
-          );
-          // State update will come via separate "state" message
+          // Authoritative removal is handled by `availablePlayers` (which filters
+          // on state.picks). We intentionally do NOT mutate player.active here —
+          // doing so left an undone pick's player invisible forever. (Review H4.)
+          setError(null);
           break;
         case "timer":
           setState((prev) =>
@@ -116,6 +144,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
           break;
         case "error":
           setError(msg.message);
+          setErrorNonce((n) => n + 1);
           break;
         case "kicked":
           // Admin removed us from the lobby. The server closes the socket next; the
@@ -133,6 +162,7 @@ export function DraftProvider({ children }: { children: ReactNode }) {
   // Clear the kicked state and re-establish the connection (auto-join re-adds us).
   const rejoin = useCallback(() => {
     kickedRef.current = false;
+    reconnectAttemptsRef.current = 0;
     setKicked(false);
     connect();
   }, [connect]);
@@ -151,7 +181,14 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     return () => {
       clearInterval(pingInterval);
       clearTimeout(reconnectTimeoutRef.current);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws) {
+        // Detach handlers so this socket's onclose can't schedule a reconnect
+        // after unmount. (Review M9.)
+        ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+        wsRef.current = null;
+        ws.close();
+      }
     };
   }, [connect]);
 
@@ -162,61 +199,77 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Computed values
+  // ---- Computed values (memoized so a pick broadcast re-renders cheaply) ----
   const isMyTurn = state?.current_user_id === user?.id;
 
-  const myPicks =
-    state?.picks.filter((p) => p.user_id === user?.id) ?? [];
+  const myPicks = useMemo(
+    () => state?.picks.filter((p) => p.user_id === user?.id) ?? [],
+    [state, user?.id]
+  );
 
-  const myRoster = new Map<Position, Player[]>();
-  for (const pick of myPicks) {
-    const player = playersById.get(pick.player_id);
-    if (player) {
-      const list = myRoster.get(player.position) ?? [];
-      list.push(player);
-      myRoster.set(player.position, list);
+  const myRoster = useMemo(() => {
+    const m = new Map<Position, Player[]>();
+    for (const pick of myPicks) {
+      const player = playersById.get(pick.player_id);
+      if (player) {
+        const list = m.get(player.position) ?? [];
+        list.push(player);
+        m.set(player.position, list);
+      }
     }
-  }
+    return m;
+  }, [myPicks, playersById]);
 
-  // Available players (not yet drafted)
-  const draftedPlayerIds = new Set(state?.picks.map((p) => p.player_id) ?? []);
-  const availablePlayers = players.filter(
-    (p) => p.active && !draftedPlayerIds.has(p.id)
+  // Available players (not yet drafted). `active` stays true for the whole pool;
+  // the draft filter is authoritative and reverts correctly on undo. (Review H4.)
+  const availablePlayers = useMemo(() => {
+    const drafted = new Set(state?.picks.map((p) => p.player_id) ?? []);
+    return players.filter((p) => p.active && !drafted.has(p.id));
+  }, [players, state?.picks]);
+
+  // The current user's roster entries, computed once per relevant change instead
+  // of rebuilt for every player row inside getEligibility. (Review O2.)
+  const myRosterEntries = useMemo<RosterEntry[]>(
+    () => (state && user ? rosterFromPicks(state.picks, playersById, user.id) : []),
+    [state, user, playersById]
   );
 
   // Eligibility check — delegates to the shared draft-logic rules.
   const getEligibility = useCallback(
     (player: Player): { eligible: boolean; reason?: string } => {
       if (!state || !user) return { eligible: false, reason: "Not connected" };
-      const roster = rosterFromPicks(state.picks, playersById, user.id);
-      const r = eligibility(player.position, player.country_code, roster, state.settings);
+      const r = eligibility(player.position, player.country_code, myRosterEntries, state.settings);
       return { eligible: r.ok, reason: r.reason };
     },
-    [state, user, playersById]
+    [state, user, myRosterEntries]
   );
 
-  return (
-    <DraftContext.Provider
-      value={{
-        state,
-        players,
-        playersById,
-        connected,
-        connecting,
-        error,
-        kicked,
-        rejoin,
-        sendPick,
-        isMyTurn,
-        myPicks,
-        myRoster,
-        availablePlayers,
-        getEligibility,
-      }}
-    >
-      {children}
-    </DraftContext.Provider>
+  const value = useMemo<DraftContextValue>(
+    () => ({
+      state,
+      players,
+      playersById,
+      connected,
+      connecting,
+      error,
+      errorNonce,
+      serverOffset,
+      kicked,
+      rejoin,
+      sendPick,
+      isMyTurn,
+      myPicks,
+      myRoster,
+      availablePlayers,
+      getEligibility,
+    }),
+    [
+      state, players, playersById, connected, connecting, error, errorNonce, serverOffset,
+      kicked, rejoin, sendPick, isMyTurn, myPicks, myRoster, availablePlayers, getEligibility,
+    ]
   );
+
+  return <DraftContext.Provider value={value}>{children}</DraftContext.Provider>;
 }
 
 export function useDraft(): DraftContextValue {

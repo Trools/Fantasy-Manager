@@ -11,6 +11,9 @@ participantRoutes.post("/participants/join", requireAuth, blockIfMustChange, asy
   const cl = c.get("claims")!;
   const row = await getSettingsRow(c.env.DRAFT_DB);
   if (row.status !== "lobby") return c.json({ error: "draft already started" }, 409);
+  // A kicked user cannot re-join until an admin resets the draft. (Review H3.)
+  const banned = await c.env.DRAFT_DB.prepare("SELECT 1 FROM kicked_users WHERE user_id=?").bind(cl.userId).first();
+  if (banned) return c.json({ error: "you have been removed from this draft" }, 403);
   await c.env.DRAFT_DB.prepare("INSERT OR IGNORE INTO participants (user_id, joined) VALUES (?,1)").bind(cl.userId).run();
   await callDO(c.env, "refresh", getCookie(c, COOKIE) ?? "");
   return c.json({ ok: true });

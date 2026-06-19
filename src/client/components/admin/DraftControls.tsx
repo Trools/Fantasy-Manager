@@ -52,7 +52,8 @@ export default function DraftControls() {
             <Button className="w-full" disabled={busy} onClick={() => run(api.resumeDraft)}>▶ Resume Draft</Button>
           )}
           <Button className="w-full" variant="secondary" disabled={busy} onClick={() => run(api.undoPick, "Undo the last pick?")}>↩ Undo Last Pick</Button>
-          <Button className="w-full" variant="secondary" disabled={busy} onClick={() => run(() => api.extendTimer(30))}>＋30 Seconds</Button>
+          {/* Extend only applies to a running clock; the server 409s a paused extend. */}
+          <Button className="w-full" variant="secondary" disabled={busy || status !== "in_progress"} onClick={() => run(() => api.extendTimer(30))}>＋30 Seconds</Button>
         </>
       )}
 

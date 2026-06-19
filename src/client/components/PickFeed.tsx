@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useDraft } from "../hooks/useDraft";
 import { useAuth } from "../hooks/useAuth";
 import CountryFlag from "./CountryFlag";
@@ -7,14 +8,18 @@ export default function PickFeed() {
   const { state, playersById } = useDraft();
   const { user } = useAuth();
 
-  if (!state) return null;
-
-  // Get picks in reverse chronological order
-  const recentPicks = [...state.picks].reverse().slice(0, 20);
-
-  const participantsById = new Map(
-    state.participants.map((p) => [p.user_id, p])
+  // Last 20 picks, newest first — slice the tail rather than reversing the whole
+  // (growing) list each render. (Review O5.)
+  const recentPicks = useMemo(
+    () => (state ? state.picks.slice(-20).reverse() : []),
+    [state?.picks]
   );
+  const participantsById = useMemo(
+    () => new Map((state?.participants ?? []).map((p) => [p.user_id, p])),
+    [state?.participants]
+  );
+
+  if (!state) return null;
 
   return (
     <div>

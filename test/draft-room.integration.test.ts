@@ -60,6 +60,21 @@ async function addParticipant(userId: number, draftOrder: number): Promise<void>
     .run();
 }
 
+/** Seed `perPosition` active players per position so start-time feasibility passes. */
+async function seedPool(perPosition: number): Promise<void> {
+  const stmts = [];
+  for (const pos of ["GK", "DEF", "MID", "FWD"]) {
+    for (let i = 0; i < perPosition; i++) {
+      stmts.push(
+        env.DRAFT_DB.prepare(
+          "INSERT INTO players (country, country_code, position, full_name, active) VALUES (?, ?, ?, ?, 1)"
+        ).bind(`${pos}land${i}`, `${pos}${i}`, pos, `${pos} player ${i}`)
+      );
+    }
+  }
+  await env.DRAFT_DB.batch(stmts);
+}
+
 /**
  * Open a WS and resolve once a message matching `predicate` arrives (skipping
  * the initial state snapshot and any intervening messages).
@@ -85,6 +100,7 @@ describe("draft-room integration", () => {
   beforeEach(async () => {
     await env.DRAFT_DB.prepare("DELETE FROM picks").run();
     await env.DRAFT_DB.prepare("DELETE FROM participants").run();
+    await env.DRAFT_DB.prepare("DELETE FROM kicked_users").run();
     await env.DRAFT_DB.prepare("DELETE FROM users").run();
     // Reset settings to the seeded lobby defaults in case a prior test mutated them.
     await env.DRAFT_DB.prepare(
@@ -260,13 +276,34 @@ describe("draft-room integration", () => {
       return row!.status;
     }
 
-    it("alarm pauses an in-progress draft", async () => {
+    it("alarm pauses an in-progress draft once its deadline has passed", async () => {
       const u1 = await insertUser("a1", false);
       const u2 = await insertUser("a2", false);
       await addParticipant(u1, 1);
       await addParticipant(u2, 2);
+      // A real alarm fires at/after its deadline, so set one already in the past.
       await env.DRAFT_DB.prepare(
         "UPDATE draft_settings SET status='in_progress', current_pick_no=1, timer_deadline=? WHERE id=1"
+      )
+        .bind(Date.now() - 1000)
+        .run();
+
+      const stub = env.DRAFT_ROOM.get(env.DRAFT_ROOM.idFromName("main"));
+      await runInDurableObject(stub, (inst: DraftRoom) => inst.alarm());
+
+      expect(await statusInD1()).toBe("paused");
+    });
+
+    it("alarm does NOT pause when a newer future deadline supersedes it (buzzer-beater)", async () => {
+      const u1 = await insertUser("a3", false);
+      const u2 = await insertUser("a4", false);
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      // Simulates a pick that completed just before the stale alarm fired: status is
+      // in_progress but the deadline now points into the future. The alarm must NOT
+      // clobber it into a paused state. (Review H2.)
+      await env.DRAFT_DB.prepare(
+        "UPDATE draft_settings SET status='in_progress', current_pick_no=2, timer_deadline=? WHERE id=1"
       )
         .bind(Date.now() + 30000)
         .run();
@@ -274,7 +311,7 @@ describe("draft-room integration", () => {
       const stub = env.DRAFT_ROOM.get(env.DRAFT_ROOM.idFromName("main"));
       await runInDurableObject(stub, (inst: DraftRoom) => inst.alarm());
 
-      expect(await statusInD1()).toBe("paused");
+      expect(await statusInD1()).toBe("in_progress");
     });
 
     it("alarm is a no-op when the draft is not in_progress", async () => {
@@ -364,6 +401,8 @@ describe("draft-room integration", () => {
       u3 = await insertUser("c3", false);
       admin = await insertUser("boss", true);
       adminToken = await tokenFor(admin, "boss", true);
+      // `start` now validates the active pool can fill every squad; seed enough.
+      await seedPool(10);
     });
 
     it("rejects a command with no token with 401", async () => {
@@ -583,6 +622,79 @@ describe("draft-room integration", () => {
       // A fresh timer_deadline must be set in the future.
       expect(s.timer_deadline).not.toBeNull();
       expect(s.timer_deadline!).toBeGreaterThan(before);
+    });
+
+    it("start rejects with 409 when the active pool can't fill every squad", async () => {
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      // Replace the generous seeded pool with a single GK: 2 managers need 2 GKs.
+      await env.DRAFT_DB.prepare("DELETE FROM players").run();
+      await insertPlayer("France", "FRA", "GK", "Lone Keeper");
+      const res = await cmd("start");
+      expect(res.status).toBe(409);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toContain("Not enough");
+    });
+
+    it("the picks.player_id unique index blocks a double-draft", async () => {
+      const fwd = await insertPlayer("France", "FRA", "FWD", "Mbappe");
+      await env.DRAFT_DB.prepare(
+        "INSERT INTO picks (overall_no,round_no,user_id,player_id,picked_by_user_id,picked_at) VALUES (1,1,?,?,?,?)"
+      ).bind(u1, fwd, u1, Date.now()).run();
+      await expect(
+        env.DRAFT_DB.prepare(
+          "INSERT INTO picks (overall_no,round_no,user_id,player_id,picked_by_user_id,picked_at) VALUES (2,1,?,?,?,?)"
+        ).bind(u2, fwd, u2, Date.now()).run()
+      ).rejects.toThrow();
+    });
+
+    it("pick-on-behalf override relaxes ONLY the country cap to break a deadlock", async () => {
+      // u1 already holds a FRA goalkeeper; with max_per_country=1 a second FRA pick
+      // is blocked — but an admin override must let it through (position still has room).
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      const fraGk = await insertPlayer("France", "FRA", "GK", "FRA Keeper");
+      const fraDef = await insertPlayer("France", "FRA", "DEF", "FRA Defender");
+      // Put u1 on the clock (snake pick #4 → seat 1) with their FRA GK already drafted.
+      await env.DRAFT_DB.prepare(
+        "INSERT INTO picks (overall_no,round_no,user_id,player_id,picked_by_user_id,picked_at) VALUES (1,1,?,?,?,?)"
+      ).bind(u1, fraGk, u1, Date.now()).run();
+      await env.DRAFT_DB.prepare(
+        "UPDATE draft_settings SET status='in_progress', current_pick_no=4, max_per_country=1 WHERE id=1"
+      ).run();
+      await resetMainCache();
+
+      // Without override: blocked by the country cap.
+      const blocked = await cmd("pick-on-behalf", { player_id: fraDef });
+      expect(blocked.status).toBe(409);
+      expect(((await blocked.json()) as { error: string }).error).toContain("FRA");
+
+      // With override: allowed (position DEF still has room; cap relaxed).
+      const forced = await cmd("pick-on-behalf", { player_id: fraDef, override: true });
+      expect(forced.status).toBe(200);
+      const drafted = await env.DRAFT_DB.prepare(
+        "SELECT user_id FROM picks WHERE player_id=?"
+      ).bind(fraDef).first<{ user_id: number }>();
+      expect(drafted!.user_id).toBe(u1);
+    });
+
+    it("override does NOT bypass the position-count limit (no oversized squad)", async () => {
+      await addParticipant(u1, 1);
+      await addParticipant(u2, 2);
+      const gk1 = await insertPlayer("France", "FRA", "GK", "GK One");
+      const gk2 = await insertPlayer("Brazil", "BRA", "GK", "GK Two");
+      // u1 already has their single allowed GK; another GK must be rejected even with override.
+      await env.DRAFT_DB.prepare(
+        "INSERT INTO picks (overall_no,round_no,user_id,player_id,picked_by_user_id,picked_at) VALUES (1,1,?,?,?,?)"
+      ).bind(u1, gk1, u1, Date.now()).run();
+      await env.DRAFT_DB.prepare(
+        "UPDATE draft_settings SET status='in_progress', current_pick_no=4 WHERE id=1"
+      ).run();
+      await resetMainCache();
+
+      const res = await cmd("pick-on-behalf", { player_id: gk2, override: true });
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { error: string }).error).toContain("GK");
     });
 
     async function resetMainCache(): Promise<void> {

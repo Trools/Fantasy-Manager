@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, memo, useCallback } from "react";
 import type { Position, Player } from "../../shared/types";
 import { useDraft } from "../hooks/useDraft";
 import PlayerRow from "./PlayerRow";
@@ -18,6 +18,7 @@ export default function PlayerList() {
     getEligibility,
     state,
     myRoster,
+    errorNonce,
   } = useDraft();
 
   const [search, setSearch] = useState("");
@@ -25,6 +26,24 @@ export default function PlayerList() {
   const [countryFilter, setCountryFilter] = useState<string>("");
   const [sortField, setSortField] = useState<SortField>("rating");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  // In-flight guard: disable the picked row until the pick resolves, so a fast
+  // double-click can't fire two picks. Cleared the moment ANY pick lands
+  // (state.picks grows — this also re-enables the same picker's next consecutive
+  // snake pick), when the turn changes, or when the server rejects the pick
+  // (errorNonce bumps even on an identical repeated error). Without these the
+  // button would stay wedged for the rest of the turn.
+  const [pendingId, setPendingId] = useState<number | null>(null);
+  useEffect(() => {
+    setPendingId(null);
+  }, [isMyTurn, state?.picks.length, errorNonce]);
+
+  const handleDraft = useCallback(
+    (playerId: number) => {
+      setPendingId(playerId);
+      sendPick(playerId);
+    },
+    [sendPick]
+  );
 
   // Get unique countries for filter dropdown
   const countries = useMemo(() => {
@@ -222,9 +241,10 @@ export default function PlayerList() {
               player={player}
               isMyTurn={isMyTurn}
               getEligibility={getEligibility}
-              onDraft={sendPick}
+              onDraft={handleDraft}
               isDraftActive={state?.status === "in_progress"}
               fills={neededPositions.has(player.position)}
+              submitting={pendingId === player.id}
             />
           ))
         ) : (
@@ -249,13 +269,14 @@ export default function PlayerList() {
   );
 }
 
-function PlayerListItem({
+const PlayerListItem = memo(function PlayerListItem({
   player,
   isMyTurn,
   getEligibility,
   onDraft,
   isDraftActive,
   fills,
+  submitting,
 }: {
   player: Player;
   isMyTurn: boolean;
@@ -263,9 +284,10 @@ function PlayerListItem({
   onDraft: (playerId: number) => void;
   isDraftActive: boolean;
   fills: boolean;
+  submitting: boolean;
 }) {
   const { eligible, reason } = getEligibility(player);
-  const canDraft = isMyTurn && eligible && isDraftActive;
+  const canDraft = isMyTurn && eligible && isDraftActive && !submitting;
 
   return (
     <PlayerRow
@@ -276,7 +298,7 @@ function PlayerListItem({
         isDraftActive && (
           <div className="flex items-center gap-2">
             {/* "Fills" hint — only when eligible, your turn, and this position is below its minimum */}
-            {eligible && canDraft && fills && (
+            {eligible && isMyTurn && fills && (
               <span className="flex-none whitespace-nowrap text-[10px] font-extrabold tracking-wide text-(color:--color-pos-gk) bg-(--color-pos-gk)/12 border border-(--color-pos-gk)/35 px-2.5 py-1.5 rounded-full">
                 FILLS {player.position}
               </span>
@@ -293,4 +315,4 @@ function PlayerListItem({
       }
     />
   );
-}
+});

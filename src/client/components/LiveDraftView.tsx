@@ -8,7 +8,7 @@ import DraftBoard from "./DraftBoard";
 type Tab = "players" | "roster" | "feed" | "board";
 
 export default function LiveDraftView() {
-  const { state, connected } = useDraft();
+  const { state, connected, error } = useDraft();
   const [mobileTab, setMobileTab] = useState<Tab>("players");
 
   if (!state) {
@@ -22,7 +22,18 @@ export default function LiveDraftView() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col bg-(--color-bg-primary)">
+    <div className="relative h-[calc(100vh-4rem)] flex flex-col bg-(--color-bg-primary)">
+      {/* Transient pick error (e.g. "Already drafted") — cleared by the next snapshot. */}
+      {connected && error && (
+        <div
+          className="absolute left-1/2 top-3 z-50 -translate-x-1/2 rounded-[11px] px-4 py-2.5 text-[13px] font-bold text-white shadow-lg"
+          style={{ background: "rgba(255,90,77,0.95)" }}
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
+
       {/* ===== ROSTER STRIP (desktop) ===== */}
       <div
         className="hidden lg:block flex-shrink-0 px-7 py-4 border-b border-white/[0.06]"

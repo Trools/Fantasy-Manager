@@ -26,8 +26,12 @@ export async function countUsers(db: D1Database): Promise<number> {
 export async function getSettingsRow(db: D1Database) {
   return db.prepare("SELECT * FROM draft_settings WHERE id = 1").first<any>();
 }
+const EMPTY_POS_COUNT: PosCounts = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+
 export function parseSettings(row: any): Settings & { status: DraftStatus; current_pick_no: number | null; timer_deadline: number | null } {
-  const pos_count = JSON.parse(row.pos_count) as PosCounts;
+  // Tolerate a missing/non-JSON pos_count rather than crashing the whole room.
+  let pos_count: PosCounts = EMPTY_POS_COUNT;
+  try { if (row?.pos_count) pos_count = JSON.parse(row.pos_count) as PosCounts; } catch { /* keep empty */ }
   return {
     total_picks: sumPosCount(pos_count), seconds_per_pick: row.seconds_per_pick,
     pos_count, max_per_country: row.max_per_country, order_mode: row.order_mode as OrderMode,

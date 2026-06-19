@@ -165,7 +165,7 @@ export default function CompleteView() {
                       {participant.username}
                     </div>
                     <div className="text-[11px] font-semibold text-(color:--color-text-muted) mt-[3px]">
-                      Pick #{participant.draft_order} ·{" "}
+                      Seat #{participant.draft_order} ·{" "}
                       {positionCounts(participant.user_id)}
                     </div>
                   </div>
